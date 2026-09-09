@@ -1,7 +1,12 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
+import { EgresoService } from '../../../core/services/egreso.service';
+import { DeudaService } from '../../../core/services/deuda.service';
+import { Egreso } from '../../../core/models/egreso.model';
+import { Deuda } from '../../../core/models/deuda.model';
 
 @Component({
   selector: 'app-dashboard',
@@ -25,10 +30,10 @@ import { AuthService } from '../../../core/services/auth.service';
             <li (click)="navigate('incomes')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </span> Ingresos</li>
-            <li><span class="menu-icon">
+            <li (click)="navigate('egresos')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
             </span> Egresos</li>
-            <li><span class="menu-icon">
+            <li (click)="navigate('deudas')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             </span> Deudas</li>
             <li *ngIf="isAdmin"><span class="menu-icon">
@@ -56,6 +61,8 @@ import { AuthService } from '../../../core/services/auth.service';
 
       <!-- CONTENIDO PRINCIPAL -->
       <main class="main-content">
+
+        <p *ngIf="errorMsg" class="error-banner">{{ errorMsg }}</p>
 
         <!-- HEADER -->
         <header class="topbar">
@@ -94,8 +101,8 @@ import { AuthService } from '../../../core/services/auth.service';
               </div>
               <h3>Total de egresos</h3>
             </div>
-            <h2>Q0.00</h2>
-            <p class="trend"><span>0%</span> from last week</p>
+            <h2>{{ money(totalEgresos) }}</h2>
+            <p class="trend"><span>{{ nroEgresos }}</span> egresos registrados</p>
           </div>
 
           <div class="card stat-card">
@@ -105,19 +112,19 @@ import { AuthService } from '../../../core/services/auth.service';
               </div>
               <h3>Total deuda</h3>
             </div>
-            <h2>Q0.00</h2>
-            <p class="trend"><span>0%</span> from last week</p>
+            <h2>{{ money(totalDeuda) }}</h2>
+            <p class="trend"><span>{{ nroDeudasActivas }}</span> deudas activas</p>
           </div>
         </section>
 
         <!-- GRÁFICOS -->
         <section class="charts-section">
           <div class="card chart-large">
-            <h3>Revenue Flow</h3>
+            <h3>Gastos de la semana</h3>
             <div class="bar-chart">
               <div class="bar-group" *ngFor="let day of weekDays">
                 <div class="bar-wrapper">
-                  <div class="bar" [style.height.%]="day.value" [style.background]="day.color"></div>
+                  <div class="bar" [style.height.%]="day.height" [style.background]="day.color" [title]="day.label + ': ' + money(day.value)"></div>
                 </div>
                 <span class="bar-label">{{ day.label }}</span>
               </div>
@@ -131,14 +138,14 @@ import { AuthService } from '../../../core/services/auth.service';
                 <svg viewBox="0 0 120 120" class="donut-svg">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#2a2c31" stroke-width="10"/>
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#8b5cf6" stroke-width="10"
-                    stroke-dasharray="226.2" stroke-dashoffset="226.2"
+                    stroke-dasharray="226.2" [attr.stroke-dashoffset]="donutOffset"
                     stroke-linecap="round" transform="rotate(-90 60 60)"/>
                 </svg>
                 <div class="donut-text">
-                  <span class="donut-value">0%</span>
+                  <span class="donut-value">{{ donutValue }}%</span>
                 </div>
               </div>
-              <span class="efficiency-label">eficiencia</span>
+              <span class="efficiency-label">presupuesto mensual</span>
               <div class="efficiency-meta">
                 <span class="meta-dot"></span>
                 <span class="meta-text">Meta mensual</span>
@@ -401,6 +408,16 @@ import { AuthService } from '../../../core/services/auth.service';
       margin-bottom: 1.5rem;
     }
 
+    .error-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 1.2rem;
+    }
+
     .card {
       background-color: var(--bg-card);
       border-radius: 14px;
@@ -607,19 +624,71 @@ import { AuthService } from '../../../core/services/auth.service';
     }
   `]
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
   authService = inject(AuthService);
   router = inject(Router);
+  egresoService = inject(EgresoService);
+  deudaService = inject(DeudaService);
+
+  egresos: Egreso[] = [];
+  deudas: Deuda[] = [];
+  loading = true;
+  errorMsg = '';
+
+  presupuestoMensual = 5000;
 
   weekDays = [
-    { label: 'Lun', value: 0, color: '#3b3b42' },
-    { label: 'Mar', value: 0, color: '#3b3b42' },
-    { label: 'Mié', value: 0, color: '#3b3b42' },
-    { label: 'Jue', value: 0, color: '#3b3b42' },
-    { label: 'Vie', value: 0, color: '#3b3b42' },
-    { label: 'Sáb', value: 0, color: '#3b3b42' },
-    { label: 'Dom', value: 0, color: '#3b3b42' }
+    { label: 'Lun', value: 0, height: 0, color: '#8b5cf6' },
+    { label: 'Mar', value: 0, height: 0, color: '#8b5cf6' },
+    { label: 'Mié', value: 0, height: 0, color: '#8b5cf6' },
+    { label: 'Jue', value: 0, height: 0, color: '#8b5cf6' },
+    { label: 'Vie', value: 0, height: 0, color: '#8b5cf6' },
+    { label: 'Sáb', value: 0, height: 0, color: '#a78bfa' },
+    { label: 'Dom', value: 0, height: 0, color: '#a78bfa' }
   ];
+
+  ngOnInit(): void {
+    forkJoin({
+      egresos: this.egresoService.getData(),
+      deudas: this.deudaService.getData()
+    }).subscribe({
+      next: (res) => {
+        this.egresos = res.egresos.data?.egresos ?? [];
+        this.deudas = res.deudas.data?.deudas ?? [];
+        this.buildWeekChart();
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMsg = err.message || 'Error al cargar el dashboard';
+        this.loading = false;
+      }
+    });
+  }
+
+  private buildWeekChart(): void {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Dom, 1 = Lun ...
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - ((currentDay + 6) % 7));
+
+    const totals = [0, 0, 0, 0, 0, 0, 0];
+
+    for (const e of this.egresos) {
+      const d = new Date(e.fecha + 'T00:00:00');
+      if (isNaN(d.getTime())) continue;
+      const diffDays = Math.round((d.getTime() - weekStart.getTime()) / 86400000);
+      if (diffDays >= 0 && diffDays < 7) {
+        totals[diffDays] += Number(e.monto);
+      }
+    }
+
+    const max = Math.max(...totals, 1);
+    this.weekDays = this.weekDays.map((day, i) => ({
+      ...day,
+      value: totals[i],
+      height: Math.max(8, Math.round((totals[i] / max) * 100))
+    }));
+  }
 
   get isAdmin(): boolean {
     return this.authService.currentUserSubject.value?.role === 'admin';
@@ -644,6 +713,32 @@ export class DashboardComponent {
     } catch {
       return 0;
     }
+  }
+
+  get totalEgresos(): number {
+    return this.egresos.reduce((sum, e) => sum + Number(e.monto), 0);
+  }
+
+  get nroEgresos(): number {
+    return this.egresos.length;
+  }
+
+  get totalDeuda(): number {
+    return this.deudas.filter(d => d.estado !== 'Pagada').reduce((sum, d) => sum + Number(d.monto_total), 0);
+  }
+
+  get nroDeudasActivas(): number {
+    return this.deudas.filter(d => d.estado !== 'Pagada').length;
+  }
+
+  get donutValue(): number {
+    if (this.presupuestoMensual <= 0) return 0;
+    return Math.min(100, Math.round((this.totalEgresos / this.presupuestoMensual) * 100));
+  }
+
+  get donutOffset(): number {
+    const circumference = 226.2;
+    return circumference - (circumference * this.donutValue) / 100;
   }
 
   get ahorrosTotal(): number {
@@ -671,7 +766,7 @@ export class DashboardComponent {
   }
 
   money(value: number): string {
-    return 'Q' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'Q' + (Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   logout(): void {
