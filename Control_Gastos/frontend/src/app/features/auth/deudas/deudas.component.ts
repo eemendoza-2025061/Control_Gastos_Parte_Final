@@ -1,27 +1,13 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
-
-interface Income {
-  id: number;
-  descripcion: string;
-  monto: number;
-  tipo: 'Fijo' | 'Variable';
-  fecha: string;
-}
-
-interface Ahorro {
-  id: number;
-  descripcion: string;
-  monto: number;
-  categoria: 'Emergencia' | 'Inversión' | 'Retiro';
-  fecha: string;
-}
+import { DeudaService } from '../../../core/services/deuda.service';
+import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
 
 @Component({
-  selector: 'app-incomes',
+  selector: 'app-deudas',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
@@ -39,13 +25,13 @@ interface Ahorro {
             <li (click)="navigate('dashboard')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </span> Dashboards</li>
-            <li class="active"><span class="menu-icon">
+            <li (click)="navigate('incomes')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </span> Ingresos</li>
             <li (click)="navigate('egresos')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
             </span> Egresos</li>
-            <li (click)="navigate('deudas')"><span class="menu-icon">
+            <li class="active"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             </span> Deudas</li>
             <li *ngIf="isAdmin"><span class="menu-icon">
@@ -74,17 +60,19 @@ interface Ahorro {
       <!-- CONTENIDO PRINCIPAL -->
       <main class="main-content">
 
+        <p *ngIf="errorMsg" class="error-banner">{{ errorMsg }}</p>
+
         <!-- HEADER -->
         <header class="topbar">
           <div class="topbar-title">
-            <h1>Ingresos</h1>
+            <h1>Deudas</h1>
             <p>Bienvenido, {{ userName }}</p>
           </div>
 
           <div class="topbar-actions">
             <div class="search-bar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" placeholder="Buscar transacción..." [(ngModel)]="searchTerm">
+              <input type="text" placeholder="Buscar deudas..." [(ngModel)]="searchTerm">
             </div>
             <button class="icon-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -96,104 +84,114 @@ interface Ahorro {
           </div>
         </header>
 
-        <!-- SECCIÓN: INGRESOS -->
+        <!-- KPIs DE DEUDAS -->
         <section class="summary-cards">
           <div class="card stat-card">
             <div class="card-header">
-              <div class="icon green">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+              <div class="icon red">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
               </div>
-              <h3>Ingresos Fijos Totales</h3>
+              <h3>Deuda Total Activa</h3>
             </div>
-            <h2>{{ money(fijosTotal) }}</h2>
+            <h2>{{ money(deudaTotalActiva) }}</h2>
             <p class="trend">Actualizado hoy</p>
           </div>
 
           <div class="card stat-card">
             <div class="card-header">
-              <div class="icon purple">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+              <div class="icon green">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </div>
-              <h3>Ingresos Variables Totales</h3>
+              <h3>Deudas Pagadas</h3>
             </div>
-            <h2>{{ money(variablesTotal) }}</h2>
+            <h2>{{ money(deudasPagadas) }}</h2>
             <p class="trend">Actualizado hoy</p>
           </div>
         </section>
 
-        <!-- PANELES DE INGRESOS -->
+        <!-- PANELES DE DEUDAS -->
         <section class="panels">
 
-          <!-- REGISTRAR INGRESO -->
+          <!-- REGISTRAR DEUDA -->
           <div class="card form-card">
             <div class="panel-header">
-              <div class="icon green">
+              <div class="icon purple">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               </div>
-              <h3>Registrar Ingreso</h3>
+              <h3>Registrar Deuda</h3>
             </div>
 
-            <form class="income-form" (ngSubmit)="onSubmit()">
-              <label for="descripcion">Descripción</label>
-              <input id="descripcion" type="text" name="descripcion" placeholder="Ej: Salario mensual" [(ngModel)]="form.descripcion">
+            <form class="deuda-form" (ngSubmit)="addOrUpdateDeuda()">
+              <label for="acreedor">Acreedor</label>
+              <input id="acreedor" type="text" name="acreedor" placeholder="Ej: Banco Central" [(ngModel)]="deudaForm.acreedor" required>
 
-              <label for="monto">Monto (Q)</label>
-              <input id="monto" type="number" min="0" step="0.01" name="monto" placeholder="0.00" [(ngModel)]="form.monto">
+              <label for="monto-total">Monto Total ($)</label>
+              <input id="monto-total" type="number" min="0" step="0.01" name="montoTotal" placeholder="0.00" [(ngModel)]="deudaForm.monto_total" required>
 
-              <label for="tipo">Tipo de Ingreso</label>
-              <select id="tipo" name="tipo" [(ngModel)]="form.tipo">
-                <option value="Fijo">Fijo</option>
-                <option value="Variable">Variable</option>
+              <label for="cuota-mensual">Cuota Mensual ($)</label>
+              <input id="cuota-mensual" type="number" min="0" step="0.01" name="cuotaMensual" placeholder="0.00" [(ngModel)]="deudaForm.cuota_mensual" required>
+
+              <label for="tasa-interes">Tasa de Interés (%)</label>
+              <input id="tasa-interes" type="number" min="0" step="0.01" name="tasaInteres" placeholder="0.00" [(ngModel)]="deudaForm.tasa_interes">
+
+              <label for="estado">Estado</label>
+              <select id="estado" name="estado" [(ngModel)]="deudaForm.estado">
+                <option value="Activa">Activa</option>
+                <option value="Pagada">Pagada</option>
               </select>
 
-              <label for="fecha">Fecha</label>
-              <input id="fecha" type="text" name="fecha" placeholder="DD/MM/AAAA" [(ngModel)]="form.fecha">
+              <label for="fecha-inicio">Fecha de Inicio</label>
+              <input id="fecha-inicio" type="text" name="fechaInicio" placeholder="DD/MM/AAAA" [(ngModel)]="deudaForm.fecha_inicio" required>
 
-              <button type="submit" class="btn-add" [disabled]="!form.descripcion || form.monto == null">
+              <label for="vencimiento">Vencimiento</label>
+              <input id="vencimiento" type="text" name="vencimiento" placeholder="DD/MM/AAAA" [(ngModel)]="deudaForm.vencimiento" required>
+
+              <button type="submit" class="btn-add btn-add-purple">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                {{ editingId != null ? 'Actualizar Ingreso' : 'Agregar Ingreso' }}
+                {{ deudaEditingId ? 'Actualizar Deuda' : 'Agregar Deuda' }}
               </button>
+              <button *ngIf="deudaEditingId" type="button" class="btn-cancel" (click)="cancelEditDeuda()">Cancelar edición</button>
             </form>
           </div>
 
-          <!-- HISTORIAL -->
+          <!-- HISTORIAL DE DEUDAS -->
           <div class="card history-card">
             <div class="panel-header">
-              <h3>Historial de Ingresos</h3>
-              <span class="count-badge">{{ filteredIncomes.length }}</span>
+              <h3>Historial de Deudas</h3>
+              <span class="count-badge">{{ deudas.length }}</span>
             </div>
 
             <table class="income-table">
               <thead>
                 <tr>
-                  <th>Descripción</th>
+                  <th>Acreedor</th>
                   <th>Monto</th>
-                  <th>Tipo</th>
-                  <th>Fecha</th>
+                  <th>Cuota</th>
+                  <th>Estado</th>
+                  <th>Vencimiento</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                @for (income of filteredIncomes; track income.id) {
+                @for (deuda of deudasFiltradas; track deuda.id) {
                   <tr>
-                    <td>{{ income.descripcion }}</td>
-                    <td class="amount">{{ money(income.monto) }}</td>
-                    <td>
-                      <span class="chip" [class.fijo]="income.tipo === 'Fijo'" [class.variable]="income.tipo === 'Variable'">{{ income.tipo }}</span>
-                    </td>
-                    <td>{{ income.fecha }}</td>
+                    <td>{{ deuda.acreedor }}</td>
+                    <td class="amount">{{ money(deuda.monto_total) }}</td>
+                    <td>{{ money(deuda.cuota_mensual) }}</td>
+                    <td><span class="chip" [class.activa]="estadoBadge(deuda).cls === 'activa'" [class.mora]="estadoBadge(deuda).cls === 'mora'" [class.pagada]="estadoBadge(deuda).cls === 'pagada'">{{ estadoBadge(deuda).text }}</span></td>
+                    <td>{{ fromBackendDate(deuda.vencimiento) }}</td>
                     <td class="actions">
-                      <button class="action-btn edit" title="Editar" (click)="editIncome(income)">
+                      <button class="action-btn edit" title="Editar" (click)="editDeuda(deuda)">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                       </button>
-                      <button class="action-btn delete" title="Eliminar" (click)="deleteIncome(income.id)">
+                      <button class="action-btn delete" title="Eliminar" (click)="deleteDeuda(deuda.id)">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </button>
                     </td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="5" class="empty">No hay ingresos registrados</td>
+                    <td colspan="6" class="empty-cell">{{ loading ? 'Cargando...' : 'Sin deudas registradas' }}</td>
                   </tr>
                 }
               </tbody>
@@ -202,111 +200,110 @@ interface Ahorro {
 
         </section>
 
-        <!-- SECCIÓN: AHORROS -->
+        <!-- SEGUNDA SECCIÓN DE DEUDAS -->
         <section class="section-ahorros">
 
           <div class="section-title">
-            <h3>Ahorros</h3>
+            <h3>Resumen de Deudas</h3>
           </div>
 
           <section class="summary-cards">
             <div class="card stat-card">
               <div class="card-header">
                 <div class="icon blue">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                 </div>
-                <h3>Total Ahorros</h3>
+<h3>Pagos del Mes</h3>
               </div>
-              <h2>{{ money(ahorrosTotal) }}</h2>
+              <h2>{{ money(pagosDelMes) }}</h2>
               <p class="trend">Actualizado hoy</p>
             </div>
 
             <div class="card stat-card">
               <div class="card-header">
                 <div class="icon orange">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 </div>
-                <h3>Meta de Ahorro</h3>
+                <h3>Próximo Vencimiento</h3>
               </div>
-              <h2>{{ money(meta) }}</h2>
-              <p class="trend">Actualizado hoy</p>
+              <h2>{{ proximoVencimientoFecha }}</h2>
+              <p class="trend">{{ proximoVencimientoAcreedor }}</p>
             </div>
           </section>
 
           <section class="panels">
 
-            <!-- REGISTRAR AHORRO -->
+            <!-- REGISTRAR PAGO -->
             <div class="card form-card">
               <div class="panel-header">
-                <div class="icon blue">
+                <div class="icon green">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                 </div>
-                <h3>Registrar Ahorro</h3>
+                <h3>Registrar Pago</h3>
               </div>
 
-              <form class="ahorro-form" (ngSubmit)="onSubmitAhorro()">
-                <label for="ahorro-descripcion">Descripción</label>
-                <input id="ahorro-descripcion" type="text" name="ahorroDescripcion" placeholder="Ej: Fondo de emergencia" [(ngModel)]="ahorroForm.descripcion">
-
-                <label for="ahorro-monto">Monto (Q)</label>
-                <input id="ahorro-monto" type="number" min="0" step="0.01" name="ahorroMonto" placeholder="0.00" [(ngModel)]="ahorroForm.monto">
-
-                <label for="categoria">Categoría</label>
-                <select id="categoria" name="ahorroCategoria" [(ngModel)]="ahorroForm.categoria">
-                  <option value="">Seleccionar categoría</option>
-                  <option value="Emergencia">Emergencia</option>
-                  <option value="Inversión">Inversión</option>
-                  <option value="Retiro">Retiro</option>
+              <form class="pago-form" (ngSubmit)="addOrUpdatePago()">
+                <label for="deuda-select">Deuda</label>
+                <select id="deuda-select" name="deudaSelect" [(ngModel)]="pagoForm.deuda_id" required>
+                  <option value="">Seleccionar deuda</option>
+                  @for (deuda of deudas; track deuda.id) {
+                    <option [value]="deuda.id">{{ deuda.acreedor }}</option>
+                  }
                 </select>
 
-                <label for="ahorro-fecha">Fecha</label>
-                <input id="ahorro-fecha" type="text" name="ahorroFecha" placeholder="DD/MM/AAAA" [(ngModel)]="ahorroForm.fecha">
+                <label for="pago-monto">Monto del Pago ($)</label>
+                <input id="pago-monto" type="number" min="0" step="0.01" name="pagoMonto" placeholder="0.00" [(ngModel)]="pagoForm.monto" required>
 
-                <button type="submit" class="btn-add btn-add-blue" [disabled]="!ahorroForm.descripcion || ahorroForm.monto == null || !ahorroForm.categoria">
+                <label for="pago-fecha">Fecha de Pago</label>
+                <input id="pago-fecha" type="text" name="pagoFecha" placeholder="DD/MM/AAAA" [(ngModel)]="pagoForm.fecha" required>
+
+                <label for="pago-nota">Nota</label>
+                <input id="pago-nota" type="text" name="pagoNota" placeholder="Ej: Pago cuota 3/12" [(ngModel)]="pagoForm.nota">
+
+                <button type="submit" class="btn-add btn-add-teal">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                  {{ editingAhorroId != null ? 'Actualizar Ahorro' : 'Agregar Ahorro' }}
+                  {{ pagoEditingId ? 'Actualizar Pago' : 'Registrar Pago' }}
                 </button>
+                <button *ngIf="pagoEditingId" type="button" class="btn-cancel" (click)="cancelEditPago()">Cancelar edición</button>
               </form>
             </div>
 
-            <!-- HISTORIAL -->
+            <!-- HISTORIAL DE PAGOS -->
             <div class="card history-card">
               <div class="panel-header">
-                <h3>Historial de Ahorros</h3>
-                <span class="count-badge">{{ filteredAhorros.length }}</span>
+                <h3>Historial de Pagos</h3>
+                <span class="count-badge">{{ pagos.length }}</span>
               </div>
 
               <table class="income-table">
                 <thead>
                   <tr>
-                    <th>Descripción</th>
-                    <th>Monto</th>
-                    <th>Categoría</th>
+                    <th>Deuda</th>
+                    <th>Monto Pagado</th>
                     <th>Fecha</th>
+                    <th>Nota</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (ahorro of filteredAhorros; track ahorro.id) {
+                  @for (pago of pagosFiltrados; track pago.id) {
                     <tr>
-                      <td>{{ ahorro.descripcion }}</td>
-                      <td class="amount">{{ money(ahorro.monto) }}</td>
-                      <td>
-                        <span class="chip" [class.emergencia]="ahorro.categoria === 'Emergencia'" [class.inversion]="ahorro.categoria === 'Inversión'" [class.retiro]="ahorro.categoria === 'Retiro'">{{ ahorro.categoria }}</span>
-                      </td>
-                      <td>{{ ahorro.fecha }}</td>
+                      <td>{{ acreedorDeDeuda(pago.deuda_id) }}</td>
+                      <td class="amount">{{ money(pago.monto) }}</td>
+                      <td>{{ fromBackendDate(pago.fecha) }}</td>
+                      <td>{{ pago.nota || '—' }}</td>
                       <td class="actions">
-                        <button class="action-btn edit" title="Editar" (click)="editAhorro(ahorro)">
+                        <button class="action-btn edit" title="Editar" (click)="editPago(pago)">
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                         </button>
-                        <button class="action-btn delete" title="Eliminar" (click)="deleteAhorro(ahorro.id)">
+                        <button class="action-btn delete" title="Eliminar" (click)="deletePago(pago.id)">
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                       </td>
                     </tr>
                   } @empty {
                     <tr>
-                      <td colspan="5" class="empty">No hay ahorros registrados</td>
+                      <td colspan="5" class="empty-cell">{{ loading ? 'Cargando...' : 'Sin pagos registrados' }}</td>
                     </tr>
                   }
                 </tbody>
@@ -593,6 +590,16 @@ interface Ahorro {
       margin-bottom: 1.5rem;
     }
 
+    .error-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 1.2rem;
+    }
+
     .card {
       background-color: var(--bg-card);
       border-radius: 14px;
@@ -620,6 +627,7 @@ interface Ahorro {
     .icon.green { background-color: rgba(16, 185, 129, 0.15); color: var(--brand-green); }
     .icon.blue { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .icon.orange { background-color: rgba(245, 158, 11, 0.15); color: var(--brand-amber); }
+    .icon.red { background-color: rgba(239, 68, 68, 0.15); color: #f87171; }
 
     .stat-card h3 {
       font-size: 0.85rem;
@@ -694,25 +702,25 @@ interface Ahorro {
     }
 
     /* FORM */
-    .income-form,
-    .ahorro-form {
+    .deuda-form,
+    .pago-form {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
-    .income-form label,
-    .ahorro-form label {
+    .deuda-form label,
+    .pago-form label {
       font-size: 0.78rem;
       color: var(--text-muted);
       font-weight: 500;
       margin-top: 8px;
     }
 
-    .income-form input,
-    .income-form select,
-    .ahorro-form input,
-    .ahorro-form select {
+    .deuda-form input,
+    .deuda-form select,
+    .pago-form input,
+    .pago-form select {
       background-color: var(--bg-input);
       border: 1px solid var(--border-color);
       border-radius: 10px;
@@ -721,21 +729,24 @@ interface Ahorro {
       font-family: 'Inter', sans-serif;
       font-size: 0.85rem;
       outline: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
     }
 
-    .income-form input::placeholder,
-    .ahorro-form input::placeholder {
+    .deuda-form input::placeholder,
+    .pago-form input::placeholder {
       color: #6b7280;
     }
 
-    .income-form input:focus,
-    .income-form select:focus {
+    .deuda-form input:focus,
+    .deuda-form select:focus {
       border-color: var(--brand-purple);
     }
 
-    .ahorro-form input:focus,
-    .ahorro-form select:focus {
-      border-color: var(--brand-blue);
+    .pago-form input:focus,
+    .pago-form select:focus {
+      border-color: var(--brand-green);
     }
 
     .btn-add {
@@ -748,7 +759,6 @@ interface Ahorro {
       padding: 12px;
       border: none;
       border-radius: 10px;
-      background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
       font-size: 0.9rem;
       font-weight: 600;
@@ -757,22 +767,47 @@ interface Ahorro {
       transition: all 0.2s ease;
     }
 
-    .btn-add:hover:not(:disabled) {
-      box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+    .btn-add-purple {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    }
+
+    .btn-add-purple:hover {
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.35);
       transform: translateY(-1px);
     }
 
-    .btn-add-blue {
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
+    .btn-add-teal {
+      background: linear-gradient(135deg, #14b8a6, #0d9488);
     }
 
-    .btn-add-blue:hover:not(:disabled) {
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+    .btn-add-teal:hover {
+      box-shadow: 0 0 20px rgba(20, 184, 166, 0.35);
+      transform: translateY(-1px);
     }
 
-    .btn-add:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    .btn-cancel {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-cancel:hover {
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+
+    .empty-cell {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 1.5rem !important;
     }
 
     /* TABLE */
@@ -822,29 +857,20 @@ interface Ahorro {
       border-radius: 12px;
       font-size: 0.72rem;
       font-weight: 600;
+      white-space: nowrap;
     }
 
-    .chip.fijo {
-      background-color: rgba(16, 185, 129, 0.15);
-      color: var(--brand-green);
+    .chip.activa {
+      background-color: rgba(239, 68, 68, 0.15);
+      color: #f87171;
     }
 
-    .chip.variable {
-      background-color: rgba(139, 92, 246, 0.15);
-      color: var(--brand-lavender);
-    }
-
-    .chip.emergencia {
+    .chip.mora {
       background-color: rgba(245, 158, 11, 0.15);
       color: #fbbf24;
     }
 
-    .chip.inversion {
-      background-color: rgba(59, 130, 246, 0.15);
-      color: #60a5fa;
-    }
-
-    .chip.retiro {
+    .chip.pagada {
       background-color: rgba(16, 185, 129, 0.15);
       color: #10b981;
     }
@@ -877,87 +903,268 @@ interface Ahorro {
       color: #f87171;
       background-color: rgba(239, 68, 68, 0.15);
     }
-
-    .empty {
-      text-align: center;
-      color: var(--text-muted);
-      padding: 2rem 0 !important;
-    }
   `]
 })
-export class IncomesComponent {
+export class DeudasComponent implements OnInit {
   authService = inject(AuthService);
   router = inject(Router);
+  deudaService = inject(DeudaService);
 
-  private readonly STORAGE_KEY = 'lumina_ingresos';
-  private readonly STORAGE_KEY_AHORROS = 'lumina_ahorros';
-  meta = 10000;
+  deudas: Deuda[] = [];
+  pagos: PagoDeuda[] = [];
+  loading = true;
+  errorMsg = '';
 
   searchTerm = '';
 
-  form: { descripcion: string; monto: number | null; tipo: 'Fijo' | 'Variable'; fecha: string } = {
-    descripcion: '',
-    monto: null,
-    tipo: 'Fijo',
-    fecha: ''
+  deudaForm = {
+    acreedor: '',
+    monto_total: null as number | null,
+    cuota_mensual: null as number | null,
+    tasa_interes: 0,
+    estado: 'Activa',
+    fecha_inicio: '',
+    vencimiento: ''
   };
+  deudaEditingId: string | null = null;
 
-  editingId: number | null = null;
-  incomes: Income[] = [];
+  pagoForm = { deuda_id: '', monto: null as number | null, fecha: '', nota: '' };
+  pagoEditingId: string | null = null;
 
-  ahorroForm: { descripcion: string; monto: number | null; categoria: 'Emergencia' | 'Inversión' | 'Retiro' | ''; fecha: string } = {
-    descripcion: '',
-    monto: null,
-    categoria: '',
-    fecha: ''
-  };
-
-  editingAhorroId: number | null = null;
-  ahorros: Ahorro[] = [];
-
-  constructor() {
-    this.loadIncomes();
-    this.loadAhorros();
+  ngOnInit(): void {
+    this.deudaForm.fecha_inicio = this.getToday();
+    this.deudaForm.vencimiento = this.getToday();
+    this.pagoForm.fecha = this.getToday();
+    this.loadData();
   }
 
-  get fijosTotal(): number {
-    return this.incomes
-      .filter(i => i.tipo === 'Fijo')
-      .reduce((sum, i) => sum + i.monto, 0);
+  loadData(): void {
+    this.loading = true;
+    this.errorMsg = '';
+    this.deudaService.getData().subscribe({
+      next: (res) => {
+        this.deudas = res.data?.deudas ?? [];
+        this.pagos = res.data?.pagos ?? [];
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMsg = err.message || 'Error al cargar los datos';
+        this.loading = false;
+      }
+    });
   }
 
-  get variablesTotal(): number {
-    return this.incomes
-      .filter(i => i.tipo === 'Variable')
-      .reduce((sum, i) => sum + i.monto, 0);
+  get deudaTotalActiva(): number {
+    return this.deudas.filter(d => d.estado !== 'Pagada').reduce((sum, d) => sum + Number(d.monto_total), 0);
   }
 
-  get filteredIncomes(): Income[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      return this.incomes;
-    }
-    return this.incomes.filter(i =>
-      i.descripcion.toLowerCase().includes(term) ||
-      i.tipo.toLowerCase().includes(term) ||
-      i.fecha.toLowerCase().includes(term)
+  get deudasPagadas(): number {
+    return this.deudas.filter(d => d.estado === 'Pagada').reduce((sum, d) => sum + Number(d.monto_total), 0);
+  }
+
+  get pagosDelMes(): number {
+    const now = new Date();
+    const prefix = `${now.getFullYear()}-${this.pad(now.getMonth() + 1)}`;
+    return this.pagos.filter(p => p.fecha.slice(0, 7) === prefix).reduce((sum, p) => sum + Number(p.monto), 0);
+  }
+
+  get proximoVencimientoFecha(): string {
+    const activas = this.deudas.filter(d => d.estado !== 'Pagada' && d.vencimiento);
+    if (activas.length === 0) return '—';
+    const proxima = activas.reduce((min, d) => (d.vencimiento < min.vencimiento ? d : min), activas[0]);
+    return this.fromBackendDate(proxima.vencimiento);
+  }
+
+  get proximoVencimientoAcreedor(): string {
+    const activas = this.deudas.filter(d => d.estado !== 'Pagada' && d.vencimiento);
+    if (activas.length === 0) return 'Sin deudas activas';
+    const proxima = activas.reduce((min, d) => (d.vencimiento < min.vencimiento ? d : min), activas[0]);
+    return proxima.acreedor;
+  }
+
+  get deudasFiltradas(): Deuda[] {
+    const term = this.searchTerm.toLowerCase().trim();
+    if (!term) return this.deudas;
+    return this.deudas.filter(d =>
+      d.acreedor.toLowerCase().includes(term) ||
+      d.estado.toLowerCase().includes(term)
     );
   }
 
-  get ahorrosTotal(): number {
-    return this.ahorros.reduce((sum, a) => sum + a.monto, 0);
+  get pagosFiltrados(): PagoDeuda[] {
+    const term = this.searchTerm.toLowerCase().trim();
+    if (!term) return this.pagos;
+    return this.pagos.filter(p => this.acreedorDeDeuda(p.deuda_id).toLowerCase().includes(term));
   }
 
-  get filteredAhorros(): Ahorro[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      return this.ahorros;
+  estadoBadge(deuda: Deuda): { text: string; cls: string } {
+    if (deuda.estado === 'Pagada') {
+      return { text: 'Pagada', cls: 'pagada' };
     }
-    return this.ahorros.filter(a =>
-      a.descripcion.toLowerCase().includes(term) ||
-      a.categoria.toLowerCase().includes(term) ||
-      a.fecha.toLowerCase().includes(term)
-    );
+    const hoy = new Date();
+    const hoyISO = `${hoy.getFullYear()}-${this.pad(hoy.getMonth() + 1)}-${this.pad(hoy.getDate())}`;
+    if (deuda.vencimiento < hoyISO) {
+      return { text: 'En mora', cls: 'mora' };
+    }
+    return { text: 'Activa', cls: 'activa' };
+  }
+
+  acreedorDeDeuda(deudaId: string): string {
+    const deuda = this.deudas.find(d => d.id === deudaId);
+    return deuda?.acreedor || 'Deuda eliminada';
+  }
+
+  addOrUpdateDeuda(): void {
+    const payload = {
+      acreedor: this.deudaForm.acreedor.trim(),
+      monto_total: Number(this.deudaForm.monto_total),
+      cuota_mensual: Number(this.deudaForm.cuota_mensual),
+      tasa_interes: Number(this.deudaForm.tasa_interes) || 0,
+      estado: this.deudaForm.estado,
+      fecha_inicio: this.toBackendDate(this.deudaForm.fecha_inicio),
+      vencimiento: this.toBackendDate(this.deudaForm.vencimiento)
+    };
+    if (!payload.acreedor || !payload.monto_total || !payload.cuota_mensual || !payload.fecha_inicio || !payload.vencimiento) {
+      return;
+    }
+    if (this.deudaEditingId) {
+      this.deudaService.updateDeuda(this.deudaEditingId, payload).subscribe({
+        next: () => {
+          this.resetDeudaForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al actualizar'
+      });
+    } else {
+      this.deudaService.createDeuda(payload).subscribe({
+        next: () => {
+          this.resetDeudaForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al registrar'
+      });
+    }
+  }
+
+  editDeuda(deuda: Deuda): void {
+    this.deudaEditingId = deuda.id;
+    this.deudaForm.acreedor = deuda.acreedor;
+    this.deudaForm.monto_total = Number(deuda.monto_total);
+    this.deudaForm.cuota_mensual = Number(deuda.cuota_mensual);
+    this.deudaForm.tasa_interes = Number(deuda.tasa_interes);
+    this.deudaForm.estado = deuda.estado;
+    this.deudaForm.fecha_inicio = this.fromBackendDate(deuda.fecha_inicio);
+    this.deudaForm.vencimiento = this.fromBackendDate(deuda.vencimiento);
+  }
+
+  cancelEditDeuda(): void {
+    this.resetDeudaForm();
+  }
+
+  private resetDeudaForm(): void {
+    this.deudaEditingId = null;
+    this.deudaForm = {
+      acreedor: '',
+      monto_total: null,
+      cuota_mensual: null,
+      tasa_interes: 0,
+      estado: 'Activa',
+      fecha_inicio: this.getToday(),
+      vencimiento: this.getToday()
+    };
+  }
+
+  deleteDeuda(id: string): void {
+    if (!confirm('¿Eliminar esta deuda? Se eliminarán sus pagos asociados.')) {
+      return;
+    }
+    this.deudaService.deleteDeuda(id).subscribe({
+      next: () => this.loadData(),
+      error: (err) => this.errorMsg = err.message || 'Error al eliminar'
+    });
+  }
+
+  addOrUpdatePago(): void {
+    const payload = {
+      deuda_id: this.pagoForm.deuda_id,
+      monto: Number(this.pagoForm.monto),
+      fecha: this.toBackendDate(this.pagoForm.fecha),
+      nota: this.pagoForm.nota.trim()
+    };
+    if (!payload.deuda_id || !payload.monto || !payload.fecha) {
+      return;
+    }
+    if (this.pagoEditingId) {
+      this.deudaService.updatePago(this.pagoEditingId, payload).subscribe({
+        next: () => {
+          this.resetPagoForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al actualizar'
+      });
+    } else {
+      this.deudaService.createPago(payload).subscribe({
+        next: () => {
+          this.resetPagoForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al registrar'
+      });
+    }
+  }
+
+  editPago(pago: PagoDeuda): void {
+    this.pagoEditingId = pago.id;
+    this.pagoForm.deuda_id = pago.deuda_id;
+    this.pagoForm.monto = Number(pago.monto);
+    this.pagoForm.fecha = this.fromBackendDate(pago.fecha);
+    this.pagoForm.nota = pago.nota || '';
+  }
+
+  cancelEditPago(): void {
+    this.resetPagoForm();
+  }
+
+  private resetPagoForm(): void {
+    this.pagoEditingId = null;
+    this.pagoForm = { deuda_id: '', monto: null, fecha: this.getToday(), nota: '' };
+  }
+
+  deletePago(id: string): void {
+    if (!confirm('¿Eliminar este pago?')) {
+      return;
+    }
+    this.deudaService.deletePago(id).subscribe({
+      next: () => this.loadData(),
+      error: (err) => this.errorMsg = err.message || 'Error al eliminar'
+    });
+  }
+
+  money(value: number): string {
+    const n = Number(value) || 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  toBackendDate(fecha: string): string {
+    const m = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return fecha;
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+
+  fromBackendDate(fecha: string): string {
+    if (!fecha) return '';
+    const m = fecha.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return fecha;
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  private pad(n: number): string {
+    return n < 10 ? '0' + n : '' + n;
+  }
+
+  private getToday(): string {
+    const d = new Date();
+    return `${this.pad(d.getDate())}/${this.pad(d.getMonth() + 1)}/${d.getFullYear()}`;
   }
 
   get isAdmin(): boolean {
@@ -970,138 +1177,6 @@ export class IncomesComponent {
 
   get roleLabel(): string {
     return this.isAdmin ? 'Administrador' : 'Usuario';
-  }
-
-  money(value: number): string {
-    return 'Q' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  onSubmit(): void {
-    if (!this.form.descripcion || this.form.monto == null) {
-      return;
-    }
-
-    const monto = Number(this.form.monto);
-    if (isNaN(monto)) {
-      return;
-    }
-
-    if (this.editingId != null) {
-      const index = this.incomes.findIndex(i => i.id === this.editingId);
-      if (index !== -1) {
-        this.incomes[index] = { ...this.incomes[index], descripcion: this.form.descripcion, monto, tipo: this.form.tipo, fecha: this.form.fecha };
-      }
-    } else {
-      const nextId = this.incomes.reduce((max, i) => Math.max(max, i.id), 0) + 1;
-      this.incomes.push({ id: nextId, descripcion: this.form.descripcion, monto, tipo: this.form.tipo, fecha: this.form.fecha });
-    }
-
-    this.resetForm();
-    this.persist();
-  }
-
-  editIncome(income: Income): void {
-    this.editingId = income.id;
-    this.form = { descripcion: income.descripcion, monto: income.monto, tipo: income.tipo, fecha: income.fecha };
-  }
-
-  deleteIncome(id: number): void {
-    this.incomes = this.incomes.filter(i => i.id !== id);
-    if (this.editingId === id) {
-      this.resetForm();
-    }
-    this.persist();
-  }
-
-  onSubmitAhorro(): void {
-    if (!this.ahorroForm.descripcion || this.ahorroForm.monto == null || !this.ahorroForm.categoria) {
-      return;
-    }
-
-    const monto = Number(this.ahorroForm.monto);
-    if (isNaN(monto)) {
-      return;
-    }
-
-    if (this.editingAhorroId != null) {
-      const index = this.ahorros.findIndex(a => a.id === this.editingAhorroId);
-      if (index !== -1) {
-        this.ahorros[index] = { ...this.ahorros[index], descripcion: this.ahorroForm.descripcion, monto, categoria: this.ahorroForm.categoria, fecha: this.ahorroForm.fecha };
-      }
-    } else {
-      const nextId = this.ahorros.reduce((max, a) => Math.max(max, a.id), 0) + 1;
-      this.ahorros.push({ id: nextId, descripcion: this.ahorroForm.descripcion, monto, categoria: this.ahorroForm.categoria, fecha: this.ahorroForm.fecha });
-    }
-
-    this.resetAhorroForm();
-    this.persistAhorros();
-  }
-
-  editAhorro(ahorro: Ahorro): void {
-    this.editingAhorroId = ahorro.id;
-    this.ahorroForm = { descripcion: ahorro.descripcion, monto: ahorro.monto, categoria: ahorro.categoria, fecha: ahorro.fecha };
-  }
-
-  deleteAhorro(id: number): void {
-    this.ahorros = this.ahorros.filter(a => a.id !== id);
-    if (this.editingAhorroId === id) {
-      this.resetAhorroForm();
-    }
-    this.persistAhorros();
-  }
-
-  private resetForm(): void {
-    this.form = { descripcion: '', monto: null, tipo: 'Fijo', fecha: '' };
-    this.editingId = null;
-  }
-
-  private resetAhorroForm(): void {
-    this.ahorroForm = { descripcion: '', monto: null, categoria: '', fecha: '' };
-    this.editingAhorroId = null;
-  }
-
-  private loadIncomes(): void {
-    const raw = localStorage.getItem(this.STORAGE_KEY);
-    if (raw) {
-      try {
-        this.incomes = JSON.parse(raw);
-        return;
-      } catch {
-        this.incomes = [];
-      }
-    }
-    this.incomes = [
-      { id: 1, descripcion: 'Salario mensual', monto: 2500, tipo: 'Fijo', fecha: '01/08/2026' },
-      { id: 2, descripcion: 'Freelance proyecto', monto: 800, tipo: 'Variable', fecha: '15/08/2026' },
-      { id: 3, descripcion: 'Dividendos', monto: 150, tipo: 'Fijo', fecha: '20/08/2026' }
-    ];
-    this.persist();
-  }
-
-  private loadAhorros(): void {
-    const raw = localStorage.getItem(this.STORAGE_KEY_AHORROS);
-    if (raw) {
-      try {
-        this.ahorros = JSON.parse(raw);
-        return;
-      } catch {
-        this.ahorros = [];
-      }
-    }
-    this.ahorros = [
-      { id: 1, descripcion: 'Fondo de emergencia', monto: 500, categoria: 'Emergencia', fecha: '01/08/2026' },
-      { id: 2, descripcion: 'Inversión acciones', monto: 1200, categoria: 'Inversión', fecha: '10/08/2026' },
-      { id: 3, descripcion: 'Ahorro retiro', monto: 300, categoria: 'Retiro', fecha: '20/08/2026' }
-    ];
-    this.persistAhorros();
-  }
-
-  private persist(): void {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.incomes));
-  }
-
-  private persistAhorros(): void {
-    localStorage.setItem(this.STORAGE_KEY_AHORROS, JSON.stringify(this.ahorros));
   }
 
   logout(): void {

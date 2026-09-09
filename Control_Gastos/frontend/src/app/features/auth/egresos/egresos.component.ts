@@ -1,27 +1,13 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
-
-interface Income {
-  id: number;
-  descripcion: string;
-  monto: number;
-  tipo: 'Fijo' | 'Variable';
-  fecha: string;
-}
-
-interface Ahorro {
-  id: number;
-  descripcion: string;
-  monto: number;
-  categoria: 'Emergencia' | 'Inversión' | 'Retiro';
-  fecha: string;
-}
+import { EgresoService } from '../../../core/services/egreso.service';
+import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
 
 @Component({
-  selector: 'app-incomes',
+  selector: 'app-egresos',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
@@ -39,10 +25,10 @@ interface Ahorro {
             <li (click)="navigate('dashboard')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </span> Dashboards</li>
-            <li class="active"><span class="menu-icon">
+            <li (click)="navigate('incomes')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </span> Ingresos</li>
-            <li (click)="navigate('egresos')"><span class="menu-icon">
+            <li class="active"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
             </span> Egresos</li>
             <li (click)="navigate('deudas')"><span class="menu-icon">
@@ -74,10 +60,12 @@ interface Ahorro {
       <!-- CONTENIDO PRINCIPAL -->
       <main class="main-content">
 
+        <p *ngIf="errorMsg" class="error-banner">{{ errorMsg }}</p>
+
         <!-- HEADER -->
         <header class="topbar">
           <div class="topbar-title">
-            <h1>Ingresos</h1>
+            <h1>Egresos</h1>
             <p>Bienvenido, {{ userName }}</p>
           </div>
 
@@ -96,14 +84,14 @@ interface Ahorro {
           </div>
         </header>
 
-        <!-- SECCIÓN: INGRESOS -->
+        <!-- KPIs DE EGRESOS -->
         <section class="summary-cards">
           <div class="card stat-card">
             <div class="card-header">
               <div class="icon green">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
               </div>
-              <h3>Ingresos Fijos Totales</h3>
+              <h3>Egresos Fijos Totales</h3>
             </div>
             <h2>{{ money(fijosTotal) }}</h2>
             <p class="trend">Actualizado hoy</p>
@@ -112,55 +100,56 @@ interface Ahorro {
           <div class="card stat-card">
             <div class="card-header">
               <div class="icon purple">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
               </div>
-              <h3>Ingresos Variables Totales</h3>
+              <h3>Egresos Variables Totales</h3>
             </div>
             <h2>{{ money(variablesTotal) }}</h2>
             <p class="trend">Actualizado hoy</p>
           </div>
         </section>
 
-        <!-- PANELES DE INGRESOS -->
+        <!-- PANELES DE EGRESOS -->
         <section class="panels">
 
-          <!-- REGISTRAR INGRESO -->
+          <!-- REGISTRAR EGRESO -->
           <div class="card form-card">
             <div class="panel-header">
-              <div class="icon green">
+              <div class="icon red">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               </div>
-              <h3>Registrar Ingreso</h3>
+              <h3>Registrar Egreso</h3>
             </div>
 
-            <form class="income-form" (ngSubmit)="onSubmit()">
+            <form class="egreso-form" (ngSubmit)="addOrUpdateEgreso()">
               <label for="descripcion">Descripción</label>
-              <input id="descripcion" type="text" name="descripcion" placeholder="Ej: Salario mensual" [(ngModel)]="form.descripcion">
+              <input id="descripcion" type="text" name="descripcion" placeholder="Ej: Arriendo mensual" [(ngModel)]="egresoForm.descripcion" required>
 
-              <label for="monto">Monto (Q)</label>
-              <input id="monto" type="number" min="0" step="0.01" name="monto" placeholder="0.00" [(ngModel)]="form.monto">
+              <label for="monto">Monto ($)</label>
+              <input id="monto" type="number" min="0" step="0.01" name="monto" placeholder="0.00" [(ngModel)]="egresoForm.monto" required>
 
-              <label for="tipo">Tipo de Ingreso</label>
-              <select id="tipo" name="tipo" [(ngModel)]="form.tipo">
+              <label for="tipo">Tipo de Egreso</label>
+              <select id="tipo" name="tipo" [(ngModel)]="egresoForm.tipo">
                 <option value="Fijo">Fijo</option>
                 <option value="Variable">Variable</option>
               </select>
 
               <label for="fecha">Fecha</label>
-              <input id="fecha" type="text" name="fecha" placeholder="DD/MM/AAAA" [(ngModel)]="form.fecha">
+              <input id="fecha" type="text" name="fecha" placeholder="DD/MM/AAAA" [(ngModel)]="egresoForm.fecha" required>
 
-              <button type="submit" class="btn-add" [disabled]="!form.descripcion || form.monto == null">
+              <button type="submit" class="btn-add btn-add-red">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                {{ editingId != null ? 'Actualizar Ingreso' : 'Agregar Ingreso' }}
+                {{ egresoEditingId ? 'Actualizar Egreso' : 'Agregar Egreso' }}
               </button>
+              <button *ngIf="egresoEditingId" type="button" class="btn-cancel" (click)="cancelEditEgreso()">Cancelar edición</button>
             </form>
           </div>
 
-          <!-- HISTORIAL -->
+          <!-- HISTORIAL DE EGRESOS -->
           <div class="card history-card">
             <div class="panel-header">
-              <h3>Historial de Ingresos</h3>
-              <span class="count-badge">{{ filteredIncomes.length }}</span>
+              <h3>Historial de Egresos</h3>
+              <span class="count-badge">{{ egresos.length }}</span>
             </div>
 
             <table class="income-table">
@@ -174,26 +163,24 @@ interface Ahorro {
                 </tr>
               </thead>
               <tbody>
-                @for (income of filteredIncomes; track income.id) {
+                @for (egreso of egresosFiltrados; track egreso.id) {
                   <tr>
-                    <td>{{ income.descripcion }}</td>
-                    <td class="amount">{{ money(income.monto) }}</td>
-                    <td>
-                      <span class="chip" [class.fijo]="income.tipo === 'Fijo'" [class.variable]="income.tipo === 'Variable'">{{ income.tipo }}</span>
-                    </td>
-                    <td>{{ income.fecha }}</td>
+                    <td>{{ egreso.descripcion }}</td>
+                    <td class="amount">{{ money(egreso.monto) }}</td>
+                    <td><span class="chip" [class.fijo]="egreso.tipo === 'Fijo'" [class.variable]="egreso.tipo === 'Variable'">{{ egreso.tipo }}</span></td>
+                    <td>{{ fromBackendDate(egreso.fecha) }}</td>
                     <td class="actions">
-                      <button class="action-btn edit" title="Editar" (click)="editIncome(income)">
+                      <button class="action-btn edit" title="Editar" (click)="editEgreso(egreso)">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                       </button>
-                      <button class="action-btn delete" title="Eliminar" (click)="deleteIncome(income.id)">
+                      <button class="action-btn delete" title="Eliminar" (click)="deleteEgreso(egreso.id)">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </button>
                     </td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="5" class="empty">No hay ingresos registrados</td>
+                    <td colspan="5" class="empty-cell">{{ loading ? 'Cargando...' : 'Sin egresos registrados' }}</td>
                   </tr>
                 }
               </tbody>
@@ -202,78 +189,79 @@ interface Ahorro {
 
         </section>
 
-        <!-- SECCIÓN: AHORROS -->
+        <!-- SEGUNDA SECCIÓN DE EGRESOS -->
         <section class="section-ahorros">
 
           <div class="section-title">
-            <h3>Ahorros</h3>
+            <h3>Resumen del Mes</h3>
           </div>
 
           <section class="summary-cards">
             <div class="card stat-card">
               <div class="card-header">
-                <div class="icon blue">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                <div class="icon orange">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
                 </div>
-                <h3>Total Ahorros</h3>
+                <h3>Total Gastos Mes</h3>
               </div>
-              <h2>{{ money(ahorrosTotal) }}</h2>
+              <h2>{{ money(totalGastosMes) }}</h2>
               <p class="trend">Actualizado hoy</p>
             </div>
 
             <div class="card stat-card">
               <div class="card-header">
-                <div class="icon orange">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+                <div class="icon blue">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
                 </div>
-                <h3>Meta de Ahorro</h3>
+                <h3>Presupuesto Mensual</h3>
               </div>
-              <h2>{{ money(meta) }}</h2>
-              <p class="trend">Actualizado hoy</p>
+              <h2>{{ money(presupuestoMensual) }}</h2>
+              <p class="trend">{{ pctPresupuesto }}% utilizado</p>
             </div>
           </section>
 
           <section class="panels">
 
-            <!-- REGISTRAR AHORRO -->
+            <!-- REGISTRAR GASTO POR CATEGORÍA -->
             <div class="card form-card">
               <div class="panel-header">
-                <div class="icon blue">
+                <div class="icon orange">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                 </div>
-                <h3>Registrar Ahorro</h3>
+                <h3>Registrar Gasto por Categoría</h3>
               </div>
 
-              <form class="ahorro-form" (ngSubmit)="onSubmitAhorro()">
-                <label for="ahorro-descripcion">Descripción</label>
-                <input id="ahorro-descripcion" type="text" name="ahorroDescripcion" placeholder="Ej: Fondo de emergencia" [(ngModel)]="ahorroForm.descripcion">
+              <form class="gasto-form" (ngSubmit)="addOrUpdateGasto()">
+                <label for="gasto-descripcion">Descripción</label>
+                <input id="gasto-descripcion" type="text" name="gastoDescripcion" placeholder="Ej: Servicio de internet" [(ngModel)]="gastoForm.descripcion" required>
 
-                <label for="ahorro-monto">Monto (Q)</label>
-                <input id="ahorro-monto" type="number" min="0" step="0.01" name="ahorroMonto" placeholder="0.00" [(ngModel)]="ahorroForm.monto">
+                <label for="gasto-monto">Monto ($)</label>
+                <input id="gasto-monto" type="number" min="0" step="0.01" name="gastoMonto" placeholder="0.00" [(ngModel)]="gastoForm.monto" required>
 
-                <label for="categoria">Categoría</label>
-                <select id="categoria" name="ahorroCategoria" [(ngModel)]="ahorroForm.categoria">
+                <label for="gasto-categoria">Seleccionar categoría</label>
+                <select id="gasto-categoria" name="gastoCategoria" [(ngModel)]="gastoForm.categoria" required>
                   <option value="">Seleccionar categoría</option>
-                  <option value="Emergencia">Emergencia</option>
-                  <option value="Inversión">Inversión</option>
-                  <option value="Retiro">Retiro</option>
+                  <option value="Servicios">Servicios</option>
+                  <option value="Transporte">Transporte</option>
+                  <option value="Alimentación">Alimentación</option>
                 </select>
 
-                <label for="ahorro-fecha">Fecha</label>
-                <input id="ahorro-fecha" type="text" name="ahorroFecha" placeholder="DD/MM/AAAA" [(ngModel)]="ahorroForm.fecha">
+                <label for="gasto-fecha">Fecha</label>
+                <input id="gasto-fecha" type="text" name="gastoFecha" placeholder="DD/MM/AAAA" [(ngModel)]="gastoForm.fecha" required>
 
-                <button type="submit" class="btn-add btn-add-blue" [disabled]="!ahorroForm.descripcion || ahorroForm.monto == null || !ahorroForm.categoria">
+                <button type="submit" class="btn-add btn-add-orange">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                  {{ editingAhorroId != null ? 'Actualizar Ahorro' : 'Agregar Ahorro' }}
+                  {{ gastoEditingId ? 'Actualizar Gasto' : 'Agregar Gasto' }}
                 </button>
+                <button *ngIf="gastoEditingId" type="button" class="btn-cancel" (click)="cancelEditGasto()">Cancelar edición</button>
               </form>
             </div>
 
-            <!-- HISTORIAL -->
+            <!-- GASTOS POR CATEGORÍA -->
             <div class="card history-card">
               <div class="panel-header">
-                <h3>Historial de Ahorros</h3>
-                <span class="count-badge">{{ filteredAhorros.length }}</span>
+                <h3>Gastos por Categoría</h3>
+                <span class="count-badge">{{ categorias.length }}</span>
               </div>
 
               <table class="income-table">
@@ -287,26 +275,24 @@ interface Ahorro {
                   </tr>
                 </thead>
                 <tbody>
-                  @for (ahorro of filteredAhorros; track ahorro.id) {
+                  @for (categoria of categoriasFiltradas; track categoria.id) {
                     <tr>
-                      <td>{{ ahorro.descripcion }}</td>
-                      <td class="amount">{{ money(ahorro.monto) }}</td>
-                      <td>
-                        <span class="chip" [class.emergencia]="ahorro.categoria === 'Emergencia'" [class.inversion]="ahorro.categoria === 'Inversión'" [class.retiro]="ahorro.categoria === 'Retiro'">{{ ahorro.categoria }}</span>
-                      </td>
-                      <td>{{ ahorro.fecha }}</td>
+                      <td>{{ categoria.descripcion }}</td>
+                      <td class="amount">{{ money(categoria.monto) }}</td>
+                      <td><span class="chip" [class.servicios]="categoria.categoria === 'Servicios'" [class.transporte]="categoria.categoria === 'Transporte'" [class.alimentacion]="categoria.categoria === 'Alimentación'">{{ categoria.categoria }}</span></td>
+                      <td>{{ fromBackendDate(categoria.fecha) }}</td>
                       <td class="actions">
-                        <button class="action-btn edit" title="Editar" (click)="editAhorro(ahorro)">
+                        <button class="action-btn edit" title="Editar" (click)="editGasto(categoria)">
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                         </button>
-                        <button class="action-btn delete" title="Eliminar" (click)="deleteAhorro(ahorro.id)">
+                        <button class="action-btn delete" title="Eliminar" (click)="deleteGasto(categoria.id)">
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                       </td>
                     </tr>
                   } @empty {
                     <tr>
-                      <td colspan="5" class="empty">No hay ahorros registrados</td>
+                      <td colspan="5" class="empty-cell">{{ loading ? 'Cargando...' : 'Sin gastos por categoría registrados' }}</td>
                     </tr>
                   }
                 </tbody>
@@ -593,6 +579,16 @@ interface Ahorro {
       margin-bottom: 1.5rem;
     }
 
+    .error-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 1.2rem;
+    }
+
     .card {
       background-color: var(--bg-card);
       border-radius: 14px;
@@ -620,6 +616,7 @@ interface Ahorro {
     .icon.green { background-color: rgba(16, 185, 129, 0.15); color: var(--brand-green); }
     .icon.blue { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .icon.orange { background-color: rgba(245, 158, 11, 0.15); color: var(--brand-amber); }
+    .icon.red { background-color: rgba(239, 68, 68, 0.15); color: #f87171; }
 
     .stat-card h3 {
       font-size: 0.85rem;
@@ -694,25 +691,25 @@ interface Ahorro {
     }
 
     /* FORM */
-    .income-form,
-    .ahorro-form {
+    .egreso-form,
+    .gasto-form {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
-    .income-form label,
-    .ahorro-form label {
+    .egreso-form label,
+    .gasto-form label {
       font-size: 0.78rem;
       color: var(--text-muted);
       font-weight: 500;
       margin-top: 8px;
     }
 
-    .income-form input,
-    .income-form select,
-    .ahorro-form input,
-    .ahorro-form select {
+    .egreso-form input,
+    .egreso-form select,
+    .gasto-form input,
+    .gasto-form select {
       background-color: var(--bg-input);
       border: 1px solid var(--border-color);
       border-radius: 10px;
@@ -721,21 +718,24 @@ interface Ahorro {
       font-family: 'Inter', sans-serif;
       font-size: 0.85rem;
       outline: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
     }
 
-    .income-form input::placeholder,
-    .ahorro-form input::placeholder {
+    .egreso-form input::placeholder,
+    .gasto-form input::placeholder {
       color: #6b7280;
     }
 
-    .income-form input:focus,
-    .income-form select:focus {
-      border-color: var(--brand-purple);
+    .egreso-form input:focus,
+    .egreso-form select:focus {
+      border-color: var(--brand-red);
     }
 
-    .ahorro-form input:focus,
-    .ahorro-form select:focus {
-      border-color: var(--brand-blue);
+    .gasto-form input:focus,
+    .gasto-form select:focus {
+      border-color: var(--brand-amber);
     }
 
     .btn-add {
@@ -748,7 +748,6 @@ interface Ahorro {
       padding: 12px;
       border: none;
       border-radius: 10px;
-      background: linear-gradient(135deg, #10b981, #059669);
       color: #ffffff;
       font-size: 0.9rem;
       font-weight: 600;
@@ -757,22 +756,47 @@ interface Ahorro {
       transition: all 0.2s ease;
     }
 
-    .btn-add:hover:not(:disabled) {
-      box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+    .btn-add-red {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .btn-add-red:hover {
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
       transform: translateY(-1px);
     }
 
-    .btn-add-blue {
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
+    .btn-add-orange {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
     }
 
-    .btn-add-blue:hover:not(:disabled) {
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+    .btn-add-orange:hover {
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
+      transform: translateY(-1px);
     }
 
-    .btn-add:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    .btn-cancel {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-cancel:hover {
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+
+    .empty-cell {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 1.5rem !important;
     }
 
     /* TABLE */
@@ -834,17 +858,17 @@ interface Ahorro {
       color: var(--brand-lavender);
     }
 
-    .chip.emergencia {
+    .chip.servicios {
       background-color: rgba(245, 158, 11, 0.15);
       color: #fbbf24;
     }
 
-    .chip.inversion {
+    .chip.transporte {
       background-color: rgba(59, 130, 246, 0.15);
       color: #60a5fa;
     }
 
-    .chip.retiro {
+    .chip.alimentacion {
       background-color: rgba(16, 185, 129, 0.15);
       color: #10b981;
     }
@@ -877,87 +901,217 @@ interface Ahorro {
       color: #f87171;
       background-color: rgba(239, 68, 68, 0.15);
     }
-
-    .empty {
-      text-align: center;
-      color: var(--text-muted);
-      padding: 2rem 0 !important;
-    }
   `]
 })
-export class IncomesComponent {
+export class EgresosComponent implements OnInit {
   authService = inject(AuthService);
   router = inject(Router);
+  egresoService = inject(EgresoService);
 
-  private readonly STORAGE_KEY = 'lumina_ingresos';
-  private readonly STORAGE_KEY_AHORROS = 'lumina_ahorros';
-  meta = 10000;
+  egresos: Egreso[] = [];
+  categorias: EgresoCategoria[] = [];
+  loading = true;
+  errorMsg = '';
 
   searchTerm = '';
 
-  form: { descripcion: string; monto: number | null; tipo: 'Fijo' | 'Variable'; fecha: string } = {
-    descripcion: '',
-    monto: null,
-    tipo: 'Fijo',
-    fecha: ''
-  };
+  egresoForm = { descripcion: '', monto: null as number | null, tipo: 'Fijo', fecha: '' };
+  egresoEditingId: string | null = null;
 
-  editingId: number | null = null;
-  incomes: Income[] = [];
+  gastoForm = { descripcion: '', monto: null as number | null, categoria: '', fecha: '' };
+  gastoEditingId: string | null = null;
 
-  ahorroForm: { descripcion: string; monto: number | null; categoria: 'Emergencia' | 'Inversión' | 'Retiro' | ''; fecha: string } = {
-    descripcion: '',
-    monto: null,
-    categoria: '',
-    fecha: ''
-  };
+  presupuestoMensual = 5000;
 
-  editingAhorroId: number | null = null;
-  ahorros: Ahorro[] = [];
+  ngOnInit(): void {
+    this.egresoForm.fecha = this.getToday();
+    this.gastoForm.fecha = this.getToday();
+    this.loadData();
+  }
 
-  constructor() {
-    this.loadIncomes();
-    this.loadAhorros();
+  loadData(): void {
+    this.loading = true;
+    this.errorMsg = '';
+    this.egresoService.getData().subscribe({
+      next: (res) => {
+        this.egresos = res.data?.egresos ?? [];
+        this.categorias = res.data?.categorias ?? [];
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMsg = err.message || 'Error al cargar los datos';
+        this.loading = false;
+      }
+    });
   }
 
   get fijosTotal(): number {
-    return this.incomes
-      .filter(i => i.tipo === 'Fijo')
-      .reduce((sum, i) => sum + i.monto, 0);
+    return this.egresos.filter(e => e.tipo === 'Fijo').reduce((sum, e) => sum + Number(e.monto), 0);
   }
 
   get variablesTotal(): number {
-    return this.incomes
-      .filter(i => i.tipo === 'Variable')
-      .reduce((sum, i) => sum + i.monto, 0);
+    return this.egresos.filter(e => e.tipo === 'Variable').reduce((sum, e) => sum + Number(e.monto), 0);
   }
 
-  get filteredIncomes(): Income[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      return this.incomes;
-    }
-    return this.incomes.filter(i =>
-      i.descripcion.toLowerCase().includes(term) ||
-      i.tipo.toLowerCase().includes(term) ||
-      i.fecha.toLowerCase().includes(term)
+  get totalGastosMes(): number {
+    return this.fijosTotal + this.variablesTotal;
+  }
+
+  get pctPresupuesto(): number {
+    if (this.presupuestoMensual <= 0) return 0;
+    return Math.round((this.totalGastosMes / this.presupuestoMensual) * 100);
+  }
+
+  get egresosFiltrados(): Egreso[] {
+    const term = this.searchTerm.toLowerCase().trim();
+    if (!term) return this.egresos;
+    return this.egresos.filter(e =>
+      e.descripcion.toLowerCase().includes(term) || e.tipo.toLowerCase().includes(term)
     );
   }
 
-  get ahorrosTotal(): number {
-    return this.ahorros.reduce((sum, a) => sum + a.monto, 0);
+  get categoriasFiltradas(): EgresoCategoria[] {
+    const term = this.searchTerm.toLowerCase().trim();
+    if (!term) return this.categorias;
+    return this.categorias.filter(c =>
+      c.descripcion.toLowerCase().includes(term) || c.categoria.toLowerCase().includes(term)
+    );
   }
 
-  get filteredAhorros(): Ahorro[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      return this.ahorros;
+  addOrUpdateEgreso(): void {
+    const payload = {
+      descripcion: this.egresoForm.descripcion.trim(),
+      monto: Number(this.egresoForm.monto),
+      tipo: this.egresoForm.tipo,
+      fecha: this.toBackendDate(this.egresoForm.fecha)
+    };
+    if (!payload.descripcion || !payload.monto || !payload.fecha) {
+      return;
     }
-    return this.ahorros.filter(a =>
-      a.descripcion.toLowerCase().includes(term) ||
-      a.categoria.toLowerCase().includes(term) ||
-      a.fecha.toLowerCase().includes(term)
-    );
+    if (this.egresoEditingId) {
+      this.egresoService.updateEgreso(this.egresoEditingId, payload).subscribe({
+        next: () => {
+          this.resetEgresoForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al actualizar'
+      });
+    } else {
+      this.egresoService.createEgreso(payload).subscribe({
+        next: () => {
+          this.resetEgresoForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al registrar'
+      });
+    }
+  }
+
+  editEgreso(egreso: Egreso): void {
+    this.egresoEditingId = egreso.id;
+    this.egresoForm.descripcion = egreso.descripcion;
+    this.egresoForm.monto = Number(egreso.monto);
+    this.egresoForm.tipo = egreso.tipo;
+    this.egresoForm.fecha = this.fromBackendDate(egreso.fecha);
+  }
+
+  cancelEditEgreso(): void {
+    this.resetEgresoForm();
+  }
+
+  private resetEgresoForm(): void {
+    this.egresoEditingId = null;
+    this.egresoForm = { descripcion: '', monto: null, tipo: 'Fijo', fecha: this.getToday() };
+  }
+
+  deleteEgreso(id: string): void {
+    if (!confirm('¿Eliminar este egreso?')) {
+      return;
+    }
+    this.egresoService.deleteEgreso(id).subscribe({
+      next: () => this.loadData(),
+      error: (err) => this.errorMsg = err.message || 'Error al eliminar'
+    });
+  }
+
+  addOrUpdateGasto(): void {
+    const payload = {
+      descripcion: this.gastoForm.descripcion.trim(),
+      monto: Number(this.gastoForm.monto),
+      categoria: this.gastoForm.categoria,
+      fecha: this.toBackendDate(this.gastoForm.fecha)
+    };
+    if (!payload.descripcion || !payload.monto || !payload.categoria || !payload.fecha) {
+      return;
+    }
+    if (this.gastoEditingId) {
+      this.egresoService.updateCategoria(this.gastoEditingId, payload).subscribe({
+        next: () => {
+          this.resetGastoForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al actualizar'
+      });
+    } else {
+      this.egresoService.createCategoria(payload).subscribe({
+        next: () => {
+          this.resetGastoForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al registrar'
+      });
+    }
+  }
+
+  editGasto(categoria: EgresoCategoria): void {
+    this.gastoEditingId = categoria.id;
+    this.gastoForm.descripcion = categoria.descripcion;
+    this.gastoForm.monto = Number(categoria.monto);
+    this.gastoForm.categoria = categoria.categoria;
+    this.gastoForm.fecha = this.fromBackendDate(categoria.fecha);
+  }
+
+  cancelEditGasto(): void {
+    this.resetGastoForm();
+  }
+
+  private resetGastoForm(): void {
+    this.gastoEditingId = null;
+    this.gastoForm = { descripcion: '', monto: null, categoria: '', fecha: this.getToday() };
+  }
+
+  deleteGasto(id: string): void {
+    if (!confirm('¿Eliminar este gasto por categoría?')) {
+      return;
+    }
+    this.egresoService.deleteCategoria(id).subscribe({
+      next: () => this.loadData(),
+      error: (err) => this.errorMsg = err.message || 'Error al eliminar'
+    });
+  }
+
+  money(value: number): string {
+    const n = Number(value) || 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  toBackendDate(fecha: string): string {
+    const m = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return fecha;
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+
+  fromBackendDate(fecha: string): string {
+    if (!fecha) return '';
+    const m = fecha.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return fecha;
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  private getToday(): string {
+    const d = new Date();
+    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
   }
 
   get isAdmin(): boolean {
@@ -970,138 +1124,6 @@ export class IncomesComponent {
 
   get roleLabel(): string {
     return this.isAdmin ? 'Administrador' : 'Usuario';
-  }
-
-  money(value: number): string {
-    return 'Q' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  onSubmit(): void {
-    if (!this.form.descripcion || this.form.monto == null) {
-      return;
-    }
-
-    const monto = Number(this.form.monto);
-    if (isNaN(monto)) {
-      return;
-    }
-
-    if (this.editingId != null) {
-      const index = this.incomes.findIndex(i => i.id === this.editingId);
-      if (index !== -1) {
-        this.incomes[index] = { ...this.incomes[index], descripcion: this.form.descripcion, monto, tipo: this.form.tipo, fecha: this.form.fecha };
-      }
-    } else {
-      const nextId = this.incomes.reduce((max, i) => Math.max(max, i.id), 0) + 1;
-      this.incomes.push({ id: nextId, descripcion: this.form.descripcion, monto, tipo: this.form.tipo, fecha: this.form.fecha });
-    }
-
-    this.resetForm();
-    this.persist();
-  }
-
-  editIncome(income: Income): void {
-    this.editingId = income.id;
-    this.form = { descripcion: income.descripcion, monto: income.monto, tipo: income.tipo, fecha: income.fecha };
-  }
-
-  deleteIncome(id: number): void {
-    this.incomes = this.incomes.filter(i => i.id !== id);
-    if (this.editingId === id) {
-      this.resetForm();
-    }
-    this.persist();
-  }
-
-  onSubmitAhorro(): void {
-    if (!this.ahorroForm.descripcion || this.ahorroForm.monto == null || !this.ahorroForm.categoria) {
-      return;
-    }
-
-    const monto = Number(this.ahorroForm.monto);
-    if (isNaN(monto)) {
-      return;
-    }
-
-    if (this.editingAhorroId != null) {
-      const index = this.ahorros.findIndex(a => a.id === this.editingAhorroId);
-      if (index !== -1) {
-        this.ahorros[index] = { ...this.ahorros[index], descripcion: this.ahorroForm.descripcion, monto, categoria: this.ahorroForm.categoria, fecha: this.ahorroForm.fecha };
-      }
-    } else {
-      const nextId = this.ahorros.reduce((max, a) => Math.max(max, a.id), 0) + 1;
-      this.ahorros.push({ id: nextId, descripcion: this.ahorroForm.descripcion, monto, categoria: this.ahorroForm.categoria, fecha: this.ahorroForm.fecha });
-    }
-
-    this.resetAhorroForm();
-    this.persistAhorros();
-  }
-
-  editAhorro(ahorro: Ahorro): void {
-    this.editingAhorroId = ahorro.id;
-    this.ahorroForm = { descripcion: ahorro.descripcion, monto: ahorro.monto, categoria: ahorro.categoria, fecha: ahorro.fecha };
-  }
-
-  deleteAhorro(id: number): void {
-    this.ahorros = this.ahorros.filter(a => a.id !== id);
-    if (this.editingAhorroId === id) {
-      this.resetAhorroForm();
-    }
-    this.persistAhorros();
-  }
-
-  private resetForm(): void {
-    this.form = { descripcion: '', monto: null, tipo: 'Fijo', fecha: '' };
-    this.editingId = null;
-  }
-
-  private resetAhorroForm(): void {
-    this.ahorroForm = { descripcion: '', monto: null, categoria: '', fecha: '' };
-    this.editingAhorroId = null;
-  }
-
-  private loadIncomes(): void {
-    const raw = localStorage.getItem(this.STORAGE_KEY);
-    if (raw) {
-      try {
-        this.incomes = JSON.parse(raw);
-        return;
-      } catch {
-        this.incomes = [];
-      }
-    }
-    this.incomes = [
-      { id: 1, descripcion: 'Salario mensual', monto: 2500, tipo: 'Fijo', fecha: '01/08/2026' },
-      { id: 2, descripcion: 'Freelance proyecto', monto: 800, tipo: 'Variable', fecha: '15/08/2026' },
-      { id: 3, descripcion: 'Dividendos', monto: 150, tipo: 'Fijo', fecha: '20/08/2026' }
-    ];
-    this.persist();
-  }
-
-  private loadAhorros(): void {
-    const raw = localStorage.getItem(this.STORAGE_KEY_AHORROS);
-    if (raw) {
-      try {
-        this.ahorros = JSON.parse(raw);
-        return;
-      } catch {
-        this.ahorros = [];
-      }
-    }
-    this.ahorros = [
-      { id: 1, descripcion: 'Fondo de emergencia', monto: 500, categoria: 'Emergencia', fecha: '01/08/2026' },
-      { id: 2, descripcion: 'Inversión acciones', monto: 1200, categoria: 'Inversión', fecha: '10/08/2026' },
-      { id: 3, descripcion: 'Ahorro retiro', monto: 300, categoria: 'Retiro', fecha: '20/08/2026' }
-    ];
-    this.persistAhorros();
-  }
-
-  private persist(): void {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.incomes));
-  }
-
-  private persistAhorros(): void {
-    localStorage.setItem(this.STORAGE_KEY_AHORROS, JSON.stringify(this.ahorros));
   }
 
   logout(): void {
