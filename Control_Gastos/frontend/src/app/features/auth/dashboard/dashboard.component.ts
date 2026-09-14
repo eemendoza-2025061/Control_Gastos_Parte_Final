@@ -6,7 +6,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { EgresoService } from '../../../core/services/egreso.service';
 import { DeudaService } from '../../../core/services/deuda.service';
 import { IngresoService } from '../../../core/services/ingreso.service';
-import { Egreso } from '../../../core/models/egreso.model';
+import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
 import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
 import { Ingreso, Ahorro } from '../../../core/models/ingreso.model';
 
@@ -638,6 +638,7 @@ export class DashboardComponent implements OnInit {
   changeDetector = inject(ChangeDetectorRef);
 
   egresos: Egreso[] = [];
+  egresosCategorias: EgresoCategoria[] = [];
   deudas: Deuda[] = [];
   pagos: PagoDeuda[] = [];
   ingresos: Ingreso[] = [];
@@ -665,6 +666,7 @@ export class DashboardComponent implements OnInit {
     }).subscribe({
       next: (res) => {
         this.egresos = res.egresos.data?.egresos ?? [];
+        this.egresosCategorias = res.egresos.data?.categorias ?? [];
         this.deudas = res.deudas.data?.deudas ?? [];
         this.pagos = res.deudas.data?.pagos ?? [];
         this.ingresos = res.ingresos.data?.ingresos ?? [];
@@ -727,7 +729,9 @@ export class DashboardComponent implements OnInit {
   }
 
   get totalEgresos(): number {
-    return this.egresos.reduce((sum, e) => sum + Number(e.monto), 0);
+    const egresos = this.egresos.reduce((sum, e) => sum + Number(e.monto), 0);
+    const egresosCategorias = this.egresosCategorias.reduce((sum, e) => sum + Number(e.monto), 0);
+    return egresos + egresosCategorias;
   }
 
   get nroEgresos(): number {
@@ -735,7 +739,14 @@ export class DashboardComponent implements OnInit {
   }
 
   get totalDeuda(): number {
-    return this.deudas.filter(d => d.estado !== 'Pagada').reduce((sum, d) => sum + Number(d.monto_total), 0);
+    return this.deudas
+      .filter(d => d.estado !== 'Pagada')
+      .reduce((sum, deuda) => {
+        const totalPagado = this.pagos
+          .filter(pago => pago.deuda_id === deuda.id)
+          .reduce((pagos, pago) => pagos + Number(pago.monto), 0);
+        return sum + Math.max(0, Number(deuda.monto_total) - totalPagado);
+      }, 0);
   }
 
   get nroDeudasActivas(): number {
