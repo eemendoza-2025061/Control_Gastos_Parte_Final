@@ -34,6 +34,28 @@ export class AuthService {
       );
   }
 
+  loginWithGoogle(credential: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${environment.apiUrl}/auth/google`, { credential })
+      .pipe(
+        tap(response => {
+          if (response.success && response.token && response.user) {
+            localStorage.setItem('token', response.token);
+            this.currentUserSubject.next(response.user);
+            this.scheduleLogout(response.token);
+          }
+        }),
+        catchError(this.handleError)
+      );
+  }
+
+  updateSavingsGoal(amount: number): Observable<{ success: boolean; user: User }> {
+    return this.http.put<{ success: boolean; user: User }>(`${environment.apiUrl}/auth/savings-goal`, { amount })
+      .pipe(
+        tap(response => this.currentUserSubject.next(response.user)),
+        catchError(this.handleError)
+      );
+  }
+
   logout(reason?: string): void {
     if (this.logoutTimer) {
       clearTimeout(this.logoutTimer);

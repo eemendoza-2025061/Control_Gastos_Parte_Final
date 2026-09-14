@@ -2,6 +2,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  picture?: string | null;
+  ahorro_meta?: number;
   role: 'admin' | 'user';
 }
 

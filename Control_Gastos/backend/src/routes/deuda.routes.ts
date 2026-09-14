@@ -7,11 +7,12 @@ const deudaController = new DeudaController();
 
 router.get('/', authenticateJWT, deudaController.list);
 router.post('/', authenticateJWT, deudaController.create);
-router.put('/:id', authenticateJWT, deudaController.update);
-router.delete('/:id', authenticateJWT, deudaController.remove);
 
 router.post('/pagos', authenticateJWT, deudaController.createPago);
 router.put('/pagos/:id', authenticateJWT, deudaController.updatePago);
 router.delete('/pagos/:id', authenticateJWT, deudaController.removePago);
+
+router.put('/:id', authenticateJWT, deudaController.update);
+router.delete('/:id', authenticateJWT, deudaController.remove);
 
 export default router;

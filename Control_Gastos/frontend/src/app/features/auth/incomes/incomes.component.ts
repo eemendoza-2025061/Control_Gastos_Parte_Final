@@ -1,22 +1,23 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { IngresoService } from '../../../core/services/ingreso.service';
+import { Ingreso, Ahorro } from '../../../core/models/ingreso.model';
+import { matchesSearch, todayDisplay, toDisplayDate, toIsoDate } from '../../../core/utils/fecha.util';
 
-interface Income {
-  id: number;
+interface IncomePayload {
   descripcion: string;
   monto: number;
-  tipo: 'Fijo' | 'Variable';
+  tipo: string;
   fecha: string;
 }
 
-interface Ahorro {
-  id: number;
+interface AhorroPayload {
   descripcion: string;
   monto: number;
-  categoria: 'Emergencia' | 'Inversión' | 'Retiro';
+  categoria: string;
   fecha: string;
 }
 
@@ -48,7 +49,7 @@ interface Ahorro {
             <li (click)="navigate('deudas')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             </span> Deudas</li>
-            <li *ngIf="isAdmin"><span class="menu-icon">
+            <li *ngIf="isAdmin" (click)="navigate('usuarios')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </span> Usuarios</li>
           </ul>
@@ -57,6 +58,7 @@ interface Ahorro {
         <div class="sidebar-footer">
           <div class="user-info">
             <div class="user-avatar">
+              <img *ngIf="profilePicture" [src]="profilePicture" [alt]="userName">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div class="user-details">
@@ -74,6 +76,8 @@ interface Ahorro {
       <!-- CONTENIDO PRINCIPAL -->
       <main class="main-content">
 
+        <p *ngIf="errorMsg" class="error-banner">{{ errorMsg }}</p>
+
         <!-- HEADER -->
         <header class="topbar">
           <div class="topbar-title">
@@ -84,7 +88,7 @@ interface Ahorro {
           <div class="topbar-actions">
             <div class="search-bar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" placeholder="Buscar transacción..." [(ngModel)]="searchTerm">
+              <input type="search" name="searchTerm" autocomplete="off" placeholder="Buscar transacción..." [(ngModel)]="searchTerm" [ngModelOptions]="{standalone: true}">
             </div>
             <button class="icon-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -181,7 +185,7 @@ interface Ahorro {
                     <td>
                       <span class="chip" [class.fijo]="income.tipo === 'Fijo'" [class.variable]="income.tipo === 'Variable'">{{ income.tipo }}</span>
                     </td>
-                    <td>{{ income.fecha }}</td>
+                    <td>{{ fromBackendDate(income.fecha) }}</td>
                     <td class="actions">
                       <button class="action-btn edit" title="Editar" (click)="editIncome(income)">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -208,6 +212,14 @@ interface Ahorro {
           <div class="section-title">
             <h3>Ahorros</h3>
           </div>
+
+          <form class="goal-form" (ngSubmit)="saveMeta()">
+            <label for="ahorro-meta">Meta de ahorro (Q)</label>
+            <input id="ahorro-meta" type="number" min="0.01" step="0.01" name="ahorroMeta" [(ngModel)]="ahorroMeta" [ngModelOptions]="{standalone: true}">
+            <button type="submit" class="btn-save-goal" [disabled]="metaSaving || ahorroMeta <= 0">
+              {{ metaSaving ? 'Guardando...' : 'Guardar meta' }}
+            </button>
+          </form>
 
           <section class="summary-cards">
             <div class="card stat-card">
@@ -294,7 +306,7 @@ interface Ahorro {
                       <td>
                         <span class="chip" [class.emergencia]="ahorro.categoria === 'Emergencia'" [class.inversion]="ahorro.categoria === 'Inversión'" [class.retiro]="ahorro.categoria === 'Retiro'">{{ ahorro.categoria }}</span>
                       </td>
-                      <td>{{ ahorro.fecha }}</td>
+                    <td>{{ fromBackendDate(ahorro.fecha) }}</td>
                       <td class="actions">
                         <button class="action-btn edit" title="Editar" (click)="editAhorro(ahorro)">
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -449,6 +461,8 @@ interface Ahorro {
       justify-content: center;
       color: var(--text-muted);
     }
+
+    .user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
     .user-details {
       display: flex;
@@ -883,15 +897,63 @@ interface Ahorro {
       color: var(--text-muted);
       padding: 2rem 0 !important;
     }
+
+    .error-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .goal-form {
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      margin-bottom: 1.2rem;
+    }
+
+    .goal-form label {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+
+    .goal-form input {
+      width: 180px;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .btn-save-goal {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      background: var(--brand-blue);
+      color: #ffffff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-save-goal:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   `]
 })
-export class IncomesComponent {
+export class IncomesComponent implements OnInit {
   authService = inject(AuthService);
   router = inject(Router);
-
-  private readonly STORAGE_KEY = 'lumina_ingresos';
-  private readonly STORAGE_KEY_AHORROS = 'lumina_ahorros';
-  meta = 10000;
+  ingresoService = inject(IngresoService);
+  changeDetector = inject(ChangeDetectorRef);
 
   searchTerm = '';
 
@@ -902,8 +964,8 @@ export class IncomesComponent {
     fecha: ''
   };
 
-  editingId: number | null = null;
-  incomes: Income[] = [];
+  editingId: string | null = null;
+  incomes: Ingreso[] = [];
 
   ahorroForm: { descripcion: string; monto: number | null; categoria: 'Emergencia' | 'Inversión' | 'Retiro' | ''; fecha: string } = {
     descripcion: '',
@@ -912,51 +974,102 @@ export class IncomesComponent {
     fecha: ''
   };
 
-  editingAhorroId: number | null = null;
+  editingAhorroId: string | null = null;
   ahorros: Ahorro[] = [];
+  ahorroMeta = 10000;
+  metaSaving = false;
 
-  constructor() {
-    this.loadIncomes();
-    this.loadAhorros();
+  loading = true;
+  errorMsg = '';
+
+ngOnInit(): void {
+    this.form.fecha = todayDisplay();
+    this.ahorroForm.fecha = todayDisplay();
+    this.searchTerm = '';
+    this.authService.currentUser$.subscribe(user => {
+      if (user?.ahorro_meta != null) {
+        this.ahorroMeta = Number(user.ahorro_meta);
+      }
+    });
+    this.loadData();
+  }
+
+  loadData(): void {
+    this.loading = true;
+    this.errorMsg = '';
+    this.ingresoService.getData().subscribe({
+      next: (res) => {
+        this.incomes = (res.data?.ingresos ?? []).map((i: Ingreso) => ({
+          ...i,
+          id: String(i.id),
+          monto: Number(i.monto),
+          fecha: toIsoDate(i.fecha)
+        }));
+        this.ahorros = (res.data?.ahorros ?? []).map((a: Ahorro) => ({
+          ...a,
+          id: String(a.id),
+          monto: Number(a.monto),
+          fecha: toIsoDate(a.fecha)
+        }));
+        this.loading = false;
+        this.changeDetector.detectChanges();
+      },
+      error: (err: Error) => {
+        this.errorMsg = err.message || 'Error al cargar los datos';
+        this.loading = false;
+      }
+    });
   }
 
   get fijosTotal(): number {
     return this.incomes
       .filter(i => i.tipo === 'Fijo')
-      .reduce((sum, i) => sum + i.monto, 0);
+      .reduce((sum, i) => sum + Number(i.monto), 0);
   }
 
   get variablesTotal(): number {
     return this.incomes
       .filter(i => i.tipo === 'Variable')
-      .reduce((sum, i) => sum + i.monto, 0);
+      .reduce((sum, i) => sum + Number(i.monto), 0);
   }
 
-  get filteredIncomes(): Income[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      return this.incomes;
-    }
+  get filteredIncomes(): Ingreso[] {
     return this.incomes.filter(i =>
-      i.descripcion.toLowerCase().includes(term) ||
-      i.tipo.toLowerCase().includes(term) ||
-      i.fecha.toLowerCase().includes(term)
+      matchesSearch(this.searchTerm, i.descripcion, i.tipo, i.fecha)
     );
   }
 
   get ahorrosTotal(): number {
-    return this.ahorros.reduce((sum, a) => sum + a.monto, 0);
+    return this.ahorros.reduce((sum, a) => sum + Number(a.monto), 0);
+  }
+
+  get meta(): number {
+    return this.ahorroMeta;
+  }
+
+  saveMeta(): void {
+    const amount = Number(this.ahorroMeta);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.errorMsg = 'La meta de ahorro debe ser mayor que cero';
+      return;
+    }
+
+    this.metaSaving = true;
+    this.authService.updateSavingsGoal(amount).subscribe({
+      next: (response) => {
+        this.ahorroMeta = Number(response.user.ahorro_meta ?? amount);
+        this.metaSaving = false;
+      },
+      error: (err: Error) => {
+        this.errorMsg = err.message || 'Error al guardar la meta de ahorro';
+        this.metaSaving = false;
+      }
+    });
   }
 
   get filteredAhorros(): Ahorro[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    if (!term) {
-      return this.ahorros;
-    }
     return this.ahorros.filter(a =>
-      a.descripcion.toLowerCase().includes(term) ||
-      a.categoria.toLowerCase().includes(term) ||
-      a.fecha.toLowerCase().includes(term)
+      matchesSearch(this.searchTerm, a.descripcion, a.categoria, a.fecha)
     );
   }
 
@@ -968,12 +1081,16 @@ export class IncomesComponent {
     return this.authService.currentUserSubject.value?.name || 'Usuario';
   }
 
+  get profilePicture(): string | null {
+    return this.authService.currentUserSubject.value?.picture || null;
+  }
+
   get roleLabel(): string {
     return this.isAdmin ? 'Administrador' : 'Usuario';
   }
 
   money(value: number): string {
-    return 'Q' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'Q' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   onSubmit(): void {
@@ -986,31 +1103,54 @@ export class IncomesComponent {
       return;
     }
 
-    if (this.editingId != null) {
-      const index = this.incomes.findIndex(i => i.id === this.editingId);
-      if (index !== -1) {
-        this.incomes[index] = { ...this.incomes[index], descripcion: this.form.descripcion, monto, tipo: this.form.tipo, fecha: this.form.fecha };
-      }
+    const payload: IncomePayload = {
+      descripcion: this.form.descripcion.trim(),
+      monto,
+      tipo: this.form.tipo,
+      fecha: toIsoDate(this.form.fecha)
+    };
+    if (!payload.fecha) {
+      this.errorMsg = 'La fecha es obligatoria y debe tener formato DD/MM/AAAA';
+      return;
+    }
+
+    this.searchTerm = '';
+
+    if (this.editingId) {
+      this.ingresoService.updateIngreso(this.editingId, payload).subscribe({
+        next: () => {
+          this.resetForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al actualizar'
+      });
     } else {
-      const nextId = this.incomes.reduce((max, i) => Math.max(max, i.id), 0) + 1;
-      this.incomes.push({ id: nextId, descripcion: this.form.descripcion, monto, tipo: this.form.tipo, fecha: this.form.fecha });
+      this.ingresoService.createIngreso(payload).subscribe({
+        next: () => {
+          this.resetForm();
+          this.loadData();
+        },
+        error: (err) => this.errorMsg = err.message || 'Error al registrar'
+      });
     }
-
-    this.resetForm();
-    this.persist();
   }
 
-  editIncome(income: Income): void {
+  editIncome(income: Ingreso): void {
     this.editingId = income.id;
-    this.form = { descripcion: income.descripcion, monto: income.monto, tipo: income.tipo, fecha: income.fecha };
+    this.form.descripcion = income.descripcion;
+    this.form.monto = Number(income.monto);
+    this.form.tipo = income.tipo;
+    this.form.fecha = toDisplayDate(income.fecha);
   }
 
-  deleteIncome(id: number): void {
-    this.incomes = this.incomes.filter(i => i.id !== id);
-    if (this.editingId === id) {
-      this.resetForm();
+  deleteIncome(id: string): void {
+    if (!confirm('¿Eliminar este ingreso?')) {
+      return;
     }
-    this.persist();
+    this.ingresoService.deleteIngreso(id).subscribe({
+      next: () => this.loadData(),
+      error: (err) => this.errorMsg = err.message || 'Error al eliminar'
+    });
   }
 
   onSubmitAhorro(): void {
@@ -1023,85 +1163,76 @@ export class IncomesComponent {
       return;
     }
 
-    if (this.editingAhorroId != null) {
-      const index = this.ahorros.findIndex(a => a.id === this.editingAhorroId);
-      if (index !== -1) {
-        this.ahorros[index] = { ...this.ahorros[index], descripcion: this.ahorroForm.descripcion, monto, categoria: this.ahorroForm.categoria, fecha: this.ahorroForm.fecha };
-      }
-    } else {
-      const nextId = this.ahorros.reduce((max, a) => Math.max(max, a.id), 0) + 1;
-      this.ahorros.push({ id: nextId, descripcion: this.ahorroForm.descripcion, monto, categoria: this.ahorroForm.categoria, fecha: this.ahorroForm.fecha });
+    const payload: AhorroPayload = {
+      descripcion: this.ahorroForm.descripcion.trim(),
+      monto,
+      categoria: this.ahorroForm.categoria,
+      fecha: toIsoDate(this.ahorroForm.fecha)
+    };
+    if (!payload.fecha) {
+      this.errorMsg = 'La fecha es obligatoria y debe tener formato DD/MM/AAAA';
+      return;
     }
 
-    this.resetAhorroForm();
-    this.persistAhorros();
+    this.searchTerm = '';
+
+    if (this.editingAhorroId) {
+      this.ingresoService.updateAhorro(this.editingAhorroId, payload).subscribe({
+        next: () => {
+          this.resetAhorroForm();
+          this.loadData();
+        },
+        error: (err: Error) => this.errorMsg = err.message || 'Error al actualizar'
+      });
+    } else {
+      this.ingresoService.createAhorro(payload).subscribe({
+        next: () => {
+          this.resetAhorroForm();
+          this.loadData();
+        },
+        error: (err: Error) => this.errorMsg = err.message || 'Error al registrar'
+      });
+    }
   }
 
   editAhorro(ahorro: Ahorro): void {
     this.editingAhorroId = ahorro.id;
-    this.ahorroForm = { descripcion: ahorro.descripcion, monto: ahorro.monto, categoria: ahorro.categoria, fecha: ahorro.fecha };
+    this.ahorroForm.descripcion = ahorro.descripcion;
+    this.ahorroForm.monto = Number(ahorro.monto);
+    this.ahorroForm.categoria = ahorro.categoria;
+    this.ahorroForm.fecha = toDisplayDate(ahorro.fecha);
   }
 
-  deleteAhorro(id: number): void {
-    this.ahorros = this.ahorros.filter(a => a.id !== id);
-    if (this.editingAhorroId === id) {
-      this.resetAhorroForm();
+  deleteAhorro(id: string): void {
+    if (!confirm('¿Eliminar este ahorro?')) {
+      return;
     }
-    this.persistAhorros();
+    this.ingresoService.deleteAhorro(id).subscribe({
+      next: () => this.loadData(),
+      error: (err: Error) => this.errorMsg = err.message || 'Error al eliminar'
+    });
   }
 
   private resetForm(): void {
-    this.form = { descripcion: '', monto: null, tipo: 'Fijo', fecha: '' };
+    this.form = { descripcion: '', monto: null, tipo: 'Fijo', fecha: todayDisplay() };
     this.editingId = null;
   }
 
   private resetAhorroForm(): void {
-    this.ahorroForm = { descripcion: '', monto: null, categoria: '', fecha: '' };
+    this.ahorroForm = { descripcion: '', monto: null, categoria: '', fecha: todayDisplay() };
     this.editingAhorroId = null;
   }
 
-  private loadIncomes(): void {
-    const raw = localStorage.getItem(this.STORAGE_KEY);
-    if (raw) {
-      try {
-        this.incomes = JSON.parse(raw);
-        return;
-      } catch {
-        this.incomes = [];
-      }
-    }
-    this.incomes = [
-      { id: 1, descripcion: 'Salario mensual', monto: 2500, tipo: 'Fijo', fecha: '01/08/2026' },
-      { id: 2, descripcion: 'Freelance proyecto', monto: 800, tipo: 'Variable', fecha: '15/08/2026' },
-      { id: 3, descripcion: 'Dividendos', monto: 150, tipo: 'Fijo', fecha: '20/08/2026' }
-    ];
-    this.persist();
+  toBackendDate(fecha: string): string {
+    return toIsoDate(fecha);
   }
 
-  private loadAhorros(): void {
-    const raw = localStorage.getItem(this.STORAGE_KEY_AHORROS);
-    if (raw) {
-      try {
-        this.ahorros = JSON.parse(raw);
-        return;
-      } catch {
-        this.ahorros = [];
-      }
-    }
-    this.ahorros = [
-      { id: 1, descripcion: 'Fondo de emergencia', monto: 500, categoria: 'Emergencia', fecha: '01/08/2026' },
-      { id: 2, descripcion: 'Inversión acciones', monto: 1200, categoria: 'Inversión', fecha: '10/08/2026' },
-      { id: 3, descripcion: 'Ahorro retiro', monto: 300, categoria: 'Retiro', fecha: '20/08/2026' }
-    ];
-    this.persistAhorros();
+  fromBackendDate(fecha: string): string {
+    return toDisplayDate(fecha);
   }
 
-  private persist(): void {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.incomes));
-  }
-
-  private persistAhorros(): void {
-    localStorage.setItem(this.STORAGE_KEY_AHORROS, JSON.stringify(this.ahorros));
+  private getToday(): string {
+    return todayDisplay();
   }
 
   logout(): void {

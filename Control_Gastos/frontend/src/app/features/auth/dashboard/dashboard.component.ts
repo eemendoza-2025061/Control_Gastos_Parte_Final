@@ -1,12 +1,14 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { EgresoService } from '../../../core/services/egreso.service';
 import { DeudaService } from '../../../core/services/deuda.service';
+import { IngresoService } from '../../../core/services/ingreso.service';
 import { Egreso } from '../../../core/models/egreso.model';
-import { Deuda } from '../../../core/models/deuda.model';
+import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
+import { Ingreso, Ahorro } from '../../../core/models/ingreso.model';
 
 @Component({
   selector: 'app-dashboard',
@@ -36,7 +38,7 @@ import { Deuda } from '../../../core/models/deuda.model';
             <li (click)="navigate('deudas')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             </span> Deudas</li>
-            <li *ngIf="isAdmin"><span class="menu-icon">
+            <li *ngIf="isAdmin" (click)="navigate('usuarios')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </span> Usuarios</li>
           </ul>
@@ -45,6 +47,7 @@ import { Deuda } from '../../../core/models/deuda.model';
         <div class="sidebar-footer">
           <div class="user-info">
             <div class="user-avatar">
+              <img *ngIf="profilePicture" [src]="profilePicture" [alt]="userName">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div class="user-details">
@@ -132,23 +135,23 @@ import { Deuda } from '../../../core/models/deuda.model';
           </div>
 
           <div class="card chart-small">
-            <h3>Efficiency</h3>
+              <h3>Efficiency</h3>
             <div class="efficiency-chart">
               <div class="donut">
                 <svg viewBox="0 0 120 120" class="donut-svg">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#2a2c31" stroke-width="10"/>
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#8b5cf6" stroke-width="10"
-                    stroke-dasharray="226.2" [attr.stroke-dashoffset]="donutOffset"
+                    stroke-dasharray="314.16" [attr.stroke-dashoffset]="donutOffset"
                     stroke-linecap="round" transform="rotate(-90 60 60)"/>
                 </svg>
                 <div class="donut-text">
                   <span class="donut-value">{{ donutValue }}%</span>
                 </div>
               </div>
-              <span class="efficiency-label">presupuesto mensual</span>
+              <span class="efficiency-label">eficiencia de deuda</span>
               <div class="efficiency-meta">
                 <span class="meta-dot"></span>
-                <span class="meta-text">Meta mensual</span>
+                <span class="meta-text">Pagos realizados</span>
               </div>
             </div>
           </div>
@@ -295,6 +298,8 @@ import { Deuda } from '../../../core/models/deuda.model';
       justify-content: center;
       color: var(--text-muted);
     }
+
+    .user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
     .user-details {
       display: flex;
@@ -629,9 +634,14 @@ export class DashboardComponent implements OnInit {
   router = inject(Router);
   egresoService = inject(EgresoService);
   deudaService = inject(DeudaService);
+  ingresoService = inject(IngresoService);
+  changeDetector = inject(ChangeDetectorRef);
 
   egresos: Egreso[] = [];
   deudas: Deuda[] = [];
+  pagos: PagoDeuda[] = [];
+  ingresos: Ingreso[] = [];
+  ahorros: Ahorro[] = [];
   loading = true;
   errorMsg = '';
 
@@ -650,15 +660,20 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     forkJoin({
       egresos: this.egresoService.getData(),
-      deudas: this.deudaService.getData()
+      deudas: this.deudaService.getData(),
+      ingresos: this.ingresoService.getData()
     }).subscribe({
       next: (res) => {
         this.egresos = res.egresos.data?.egresos ?? [];
         this.deudas = res.deudas.data?.deudas ?? [];
+        this.pagos = res.deudas.data?.pagos ?? [];
+        this.ingresos = res.ingresos.data?.ingresos ?? [];
+        this.ahorros = res.ingresos.data?.ahorros ?? [];
         this.buildWeekChart();
         this.loading = false;
+        this.changeDetector.detectChanges();
       },
-      error: (err) => {
+      error: (err: Error) => {
         this.errorMsg = err.message || 'Error al cargar el dashboard';
         this.loading = false;
       }
@@ -698,21 +713,17 @@ export class DashboardComponent implements OnInit {
     return this.authService.currentUserSubject.value?.name || 'Usuario';
   }
 
+  get profilePicture(): string | null {
+    return this.authService.currentUserSubject.value?.picture || null;
+  }
+
   get roleLabel(): string {
     return this.isAdmin ? 'Administrador' : 'Usuario';
   }
 
   get totalIngresos(): number {
-    try {
-      const raw = localStorage.getItem('lumina_ingresos');
-      if (!raw) {
-        return 0;
-      }
-      const incomes: { monto: number }[] = JSON.parse(raw);
-      return incomes.reduce((sum, i) => sum + Number(i.monto), 0);
-    } catch {
-      return 0;
-    }
+    const ingresos = this.ingresos.reduce((sum, i) => sum + Number(i.monto), 0);
+    return ingresos - this.totalEgresos - this.ahorrosTotal;
   }
 
   get totalEgresos(): number {
@@ -732,30 +743,23 @@ export class DashboardComponent implements OnInit {
   }
 
   get donutValue(): number {
-    if (this.presupuestoMensual <= 0) return 0;
-    return Math.min(100, Math.round((this.totalEgresos / this.presupuestoMensual) * 100));
+    const totalDeuda = this.deudas.reduce((sum, d) => sum + Number(d.monto_total), 0);
+    if (totalDeuda <= 0) return 100;
+    const totalPagado = this.pagos.reduce((sum, p) => sum + Number(p.monto), 0);
+    return Math.min(100, Math.round((totalPagado / totalDeuda) * 100));
   }
 
   get donutOffset(): number {
-    const circumference = 226.2;
+    const circumference = 314.16;
     return circumference - (circumference * this.donutValue) / 100;
   }
 
   get ahorrosTotal(): number {
-    try {
-      const raw = localStorage.getItem('lumina_ahorros');
-      if (!raw) {
-        return 0;
-      }
-      const ahorros: { monto: number }[] = JSON.parse(raw);
-      return ahorros.reduce((sum, a) => sum + Number(a.monto), 0);
-    } catch {
-      return 0;
-    }
+    return this.ahorros.reduce((sum, a) => sum + Number(a.monto), 0);
   }
 
   get ahorrosMeta(): number {
-    return 10000;
+    return Number(this.authService.currentUserSubject.value?.ahorro_meta) || 10000;
   }
 
   get savingsPercent(): number {

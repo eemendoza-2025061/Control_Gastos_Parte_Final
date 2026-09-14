@@ -25,6 +25,19 @@ export class AuthController {
     }
   };
 
+  googleLogin = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.body.credential) {
+        res.status(400).json({ success: false, message: 'Credencial de Google obligatoria' });
+        return;
+      }
+      const result = await this.authService.loginWithGoogle(req.body.credential);
+      res.status(200).json({ success: true, message: 'Login con Google exitoso', ...result });
+    } catch (error: any) {
+      res.status(401).json({ success: false, message: error.message || 'No se pudo iniciar sesión con Google' });
+    }
+  };
+
   getMe = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -35,6 +48,15 @@ export class AuthController {
       res.status(200).json({ success: true, user });
     } catch (error: any) {
       res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+  };
+
+  updateSavingsGoal = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = await this.authService.updateSavingsGoal(req.user!.id, Number(req.body.amount));
+      res.status(200).json({ success: true, user });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
     }
   };
 
