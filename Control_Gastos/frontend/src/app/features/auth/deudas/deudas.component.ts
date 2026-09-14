@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { DeudaService } from '../../../core/services/deuda.service';
 import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
+import { matchesSearch, todayDisplay, toDisplayDate, toIsoDate } from '../../../core/utils/fecha.util';
 
 @Component({
   selector: 'app-deudas',
@@ -34,7 +35,7 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
             <li class="active"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             </span> Deudas</li>
-            <li *ngIf="isAdmin"><span class="menu-icon">
+            <li *ngIf="isAdmin" (click)="navigate('usuarios')"><span class="menu-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </span> Usuarios</li>
           </ul>
@@ -43,6 +44,7 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
         <div class="sidebar-footer">
           <div class="user-info">
             <div class="user-avatar">
+              <img *ngIf="profilePicture" [src]="profilePicture" [alt]="userName">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div class="user-details">
@@ -72,7 +74,7 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
           <div class="topbar-actions">
             <div class="search-bar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" placeholder="Buscar deudas..." [(ngModel)]="searchTerm">
+              <input type="search" name="searchTerm" autocomplete="off" placeholder="Buscar deudas..." [(ngModel)]="searchTerm" [ngModelOptions]="{standalone: true}">
             </div>
             <button class="icon-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -125,10 +127,10 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
               <label for="acreedor">Acreedor</label>
               <input id="acreedor" type="text" name="acreedor" placeholder="Ej: Banco Central" [(ngModel)]="deudaForm.acreedor" required>
 
-              <label for="monto-total">Monto Total ($)</label>
+              <label for="monto-total">Monto Total (Q)</label>
               <input id="monto-total" type="number" min="0" step="0.01" name="montoTotal" placeholder="0.00" [(ngModel)]="deudaForm.monto_total" required>
 
-              <label for="cuota-mensual">Cuota Mensual ($)</label>
+              <label for="cuota-mensual">Cuota Mensual (Q)</label>
               <input id="cuota-mensual" type="number" min="0" step="0.01" name="cuotaMensual" placeholder="0.00" [(ngModel)]="deudaForm.cuota_mensual" required>
 
               <label for="tasa-interes">Tasa de Interés (%)</label>
@@ -158,7 +160,7 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
           <div class="card history-card">
             <div class="panel-header">
               <h3>Historial de Deudas</h3>
-              <span class="count-badge">{{ deudas.length }}</span>
+              <span class="count-badge">{{ deudasFiltradas.length }}</span>
             </div>
 
             <table class="income-table">
@@ -251,7 +253,7 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
                   }
                 </select>
 
-                <label for="pago-monto">Monto del Pago ($)</label>
+                <label for="pago-monto">Monto del Pago (Q)</label>
                 <input id="pago-monto" type="number" min="0" step="0.01" name="pagoMonto" placeholder="0.00" [(ngModel)]="pagoForm.monto" required>
 
                 <label for="pago-fecha">Fecha de Pago</label>
@@ -272,7 +274,7 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
             <div class="card history-card">
               <div class="panel-header">
                 <h3>Historial de Pagos</h3>
-                <span class="count-badge">{{ pagos.length }}</span>
+                <span class="count-badge">{{ pagosFiltrados.length }}</span>
               </div>
 
               <table class="income-table">
@@ -446,6 +448,8 @@ import { Deuda, PagoDeuda } from '../../../core/models/deuda.model';
       justify-content: center;
       color: var(--text-muted);
     }
+
+    .user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
     .user-details {
       display: flex;
@@ -909,6 +913,7 @@ export class DeudasComponent implements OnInit {
   authService = inject(AuthService);
   router = inject(Router);
   deudaService = inject(DeudaService);
+  changeDetector = inject(ChangeDetectorRef);
 
   deudas: Deuda[] = [];
   pagos: PagoDeuda[] = [];
@@ -932,9 +937,9 @@ export class DeudasComponent implements OnInit {
   pagoEditingId: string | null = null;
 
   ngOnInit(): void {
-    this.deudaForm.fecha_inicio = this.getToday();
-    this.deudaForm.vencimiento = this.getToday();
-    this.pagoForm.fecha = this.getToday();
+    this.resetDeudaForm();
+    this.resetPagoForm();
+    this.searchTerm = '';
     this.loadData();
   }
 
@@ -943,9 +948,24 @@ export class DeudasComponent implements OnInit {
     this.errorMsg = '';
     this.deudaService.getData().subscribe({
       next: (res) => {
-        this.deudas = res.data?.deudas ?? [];
-        this.pagos = res.data?.pagos ?? [];
+        this.deudas = (res.data?.deudas ?? []).map((d: Deuda) => ({
+          ...d,
+          id: String(d.id),
+          monto_total: Number(d.monto_total),
+          cuota_mensual: Number(d.cuota_mensual),
+          tasa_interes: Number(d.tasa_interes),
+          fecha_inicio: toIsoDate(d.fecha_inicio),
+          vencimiento: toIsoDate(d.vencimiento)
+        }));
+        this.pagos = (res.data?.pagos ?? []).map((p: PagoDeuda) => ({
+          ...p,
+          id: String(p.id),
+          deuda_id: String(p.deuda_id),
+          monto: Number(p.monto),
+          fecha: toIsoDate(p.fecha)
+        }));
         this.loading = false;
+        this.changeDetector.detectChanges();
       },
       error: (err) => {
         this.errorMsg = err.message || 'Error al cargar los datos';
@@ -965,7 +985,7 @@ export class DeudasComponent implements OnInit {
   get pagosDelMes(): number {
     const now = new Date();
     const prefix = `${now.getFullYear()}-${this.pad(now.getMonth() + 1)}`;
-    return this.pagos.filter(p => p.fecha.slice(0, 7) === prefix).reduce((sum, p) => sum + Number(p.monto), 0);
+    return this.pagos.filter(p => toIsoDate(p.fecha).slice(0, 7) === prefix).reduce((sum, p) => sum + Number(p.monto), 0);
   }
 
   get proximoVencimientoFecha(): string {
@@ -983,18 +1003,15 @@ export class DeudasComponent implements OnInit {
   }
 
   get deudasFiltradas(): Deuda[] {
-    const term = this.searchTerm.toLowerCase().trim();
-    if (!term) return this.deudas;
     return this.deudas.filter(d =>
-      d.acreedor.toLowerCase().includes(term) ||
-      d.estado.toLowerCase().includes(term)
+      matchesSearch(this.searchTerm, d.acreedor, d.estado)
     );
   }
 
   get pagosFiltrados(): PagoDeuda[] {
-    const term = this.searchTerm.toLowerCase().trim();
-    if (!term) return this.pagos;
-    return this.pagos.filter(p => this.acreedorDeDeuda(p.deuda_id).toLowerCase().includes(term));
+    return this.pagos.filter(p =>
+      matchesSearch(this.searchTerm, this.acreedorDeDeuda(p.deuda_id), p.nota, p.fecha)
+    );
   }
 
   estadoBadge(deuda: Deuda): { text: string; cls: string } {
@@ -1021,12 +1038,14 @@ export class DeudasComponent implements OnInit {
       cuota_mensual: Number(this.deudaForm.cuota_mensual),
       tasa_interes: Number(this.deudaForm.tasa_interes) || 0,
       estado: this.deudaForm.estado,
-      fecha_inicio: this.toBackendDate(this.deudaForm.fecha_inicio),
-      vencimiento: this.toBackendDate(this.deudaForm.vencimiento)
+      fecha_inicio: toIsoDate(this.deudaForm.fecha_inicio),
+      vencimiento: toIsoDate(this.deudaForm.vencimiento)
     };
     if (!payload.acreedor || !payload.monto_total || !payload.cuota_mensual || !payload.fecha_inicio || !payload.vencimiento) {
+      this.errorMsg = 'Acreedor, montos y fechas son obligatorios. Use DD/MM/AAAA';
       return;
     }
+    this.searchTerm = '';
     if (this.deudaEditingId) {
       this.deudaService.updateDeuda(this.deudaEditingId, payload).subscribe({
         next: () => {
@@ -1053,8 +1072,8 @@ export class DeudasComponent implements OnInit {
     this.deudaForm.cuota_mensual = Number(deuda.cuota_mensual);
     this.deudaForm.tasa_interes = Number(deuda.tasa_interes);
     this.deudaForm.estado = deuda.estado;
-    this.deudaForm.fecha_inicio = this.fromBackendDate(deuda.fecha_inicio);
-    this.deudaForm.vencimiento = this.fromBackendDate(deuda.vencimiento);
+    this.deudaForm.fecha_inicio = toDisplayDate(deuda.fecha_inicio);
+    this.deudaForm.vencimiento = toDisplayDate(deuda.vencimiento);
   }
 
   cancelEditDeuda(): void {
@@ -1069,8 +1088,8 @@ export class DeudasComponent implements OnInit {
       cuota_mensual: null,
       tasa_interes: 0,
       estado: 'Activa',
-      fecha_inicio: this.getToday(),
-      vencimiento: this.getToday()
+      fecha_inicio: todayDisplay(),
+      vencimiento: todayDisplay()
     };
   }
 
@@ -1088,12 +1107,14 @@ export class DeudasComponent implements OnInit {
     const payload = {
       deuda_id: this.pagoForm.deuda_id,
       monto: Number(this.pagoForm.monto),
-      fecha: this.toBackendDate(this.pagoForm.fecha),
+      fecha: toIsoDate(this.pagoForm.fecha),
       nota: this.pagoForm.nota.trim()
     };
     if (!payload.deuda_id || !payload.monto || !payload.fecha) {
+      this.errorMsg = 'Deuda, monto y fecha son obligatorios';
       return;
     }
+    this.searchTerm = '';
     if (this.pagoEditingId) {
       this.deudaService.updatePago(this.pagoEditingId, payload).subscribe({
         next: () => {
@@ -1117,7 +1138,7 @@ export class DeudasComponent implements OnInit {
     this.pagoEditingId = pago.id;
     this.pagoForm.deuda_id = pago.deuda_id;
     this.pagoForm.monto = Number(pago.monto);
-    this.pagoForm.fecha = this.fromBackendDate(pago.fecha);
+    this.pagoForm.fecha = toDisplayDate(pago.fecha);
     this.pagoForm.nota = pago.nota || '';
   }
 
@@ -1140,9 +1161,9 @@ export class DeudasComponent implements OnInit {
     });
   }
 
-  money(value: number): string {
+money(value: number): string {
     const n = Number(value) || 0;
-    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'Q' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   toBackendDate(fecha: string): string {
@@ -1173,6 +1194,10 @@ export class DeudasComponent implements OnInit {
 
   get userName(): string {
     return this.authService.currentUserSubject.value?.name || 'Usuario';
+  }
+
+  get profilePicture(): string | null {
+    return this.authService.currentUserSubject.value?.picture || null;
   }
 
   get roleLabel(): string {

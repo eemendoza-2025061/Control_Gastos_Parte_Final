@@ -13,5 +13,8 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'admin',
     expiresIn: process.env.JWT_EXPIRES_IN || '20m',
+  },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '151548182237-vi2kofa5tfob9quhv59o607a97g21veh.apps.googleusercontent.com',
   }
 };

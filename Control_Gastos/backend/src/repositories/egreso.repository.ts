@@ -54,6 +54,40 @@ export class EgresoRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async findById(id: string, userId: string): Promise<Egreso | null> {
+    const query = `
+      SELECT id, user_id, descripcion, monto::float8 AS monto, tipo, fecha, created_at
+      FROM egresos
+      WHERE id = $1 AND user_id = $2
+    `;
+    const result = await pool.query(query, [id, userId]);
+    return result.rows[0] || null;
+  }
+
+  async getTotalEgresosByUser(userId: string): Promise<number> {
+    const query = 'SELECT COALESCE(SUM(monto::float8), 0) AS total FROM egresos WHERE user_id = $1';
+    const result = await pool.query(query, [userId]);
+    return Number(result.rows[0].total);
+  }
+
+  async getTotalCategoriasByUser(userId: string): Promise<number> {
+    const query = 'SELECT COALESCE(SUM(monto::float8), 0) AS total FROM egresos_categorias WHERE user_id = $1';
+    const result = await pool.query(query, [userId]);
+    return Number(result.rows[0].total);
+  }
+
+  async getTotalEgresosByUserExcluding(userId: string, excludeId: string): Promise<number> {
+    const query = 'SELECT COALESCE(SUM(monto::float8), 0) AS total FROM egresos WHERE user_id = $1 AND id != $2';
+    const result = await pool.query(query, [userId, excludeId]);
+    return Number(result.rows[0].total);
+  }
+
+  async getTotalCategoriasByUserExcluding(userId: string, excludeId: string): Promise<number> {
+    const query = 'SELECT COALESCE(SUM(monto::float8), 0) AS total FROM egresos_categorias WHERE user_id = $1 AND id != $2';
+    const result = await pool.query(query, [userId, excludeId]);
+    return Number(result.rows[0].total);
+  }
+
   async findCategoriasByUser(userId: string): Promise<EgresoCategoria[]> {
     const query = `
       SELECT id, user_id, descripcion, monto::float8 AS monto, categoria, fecha, created_at

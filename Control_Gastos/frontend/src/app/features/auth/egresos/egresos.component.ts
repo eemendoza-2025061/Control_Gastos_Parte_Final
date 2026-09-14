@@ -1,10 +1,13 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { EgresoService } from '../../../core/services/egreso.service';
-import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
+import { IngresoService } from '../../../core/services/ingreso.service';
+import { Egreso } from '../../../core/models/egreso.model';
+import { Ahorro, Ingreso } from '../../../core/models/ingreso.model';
+import { matchesSearch, todayDisplay, toDisplayDate, toIsoDate } from '../../../core/utils/fecha.util';
 
 @Component({
   selector: 'app-egresos',
@@ -12,80 +15,61 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="app-container">
-
-      <!-- SIDEBAR -->
       <aside class="sidebar">
         <div class="sidebar-brand">
-          <img src="img/Logo.png" alt="Lúmina" class="logo-img">
+          <img src="img/Logo.png" alt="Lumina" class="logo-img">
         </div>
-
         <nav class="sidebar-menu">
-          <span class="menu-title">MENÚ</span>
+          <span class="menu-title">MENU</span>
           <ul>
-            <li (click)="navigate('dashboard')"><span class="menu-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            </span> Dashboards</li>
-            <li (click)="navigate('incomes')"><span class="menu-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </span> Ingresos</li>
-            <li class="active"><span class="menu-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            </span> Egresos</li>
-            <li (click)="navigate('deudas')"><span class="menu-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-            </span> Deudas</li>
-            <li *ngIf="isAdmin"><span class="menu-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </span> Usuarios</li>
+            <li (click)="navigate('dashboard')"><span class="menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Dashboard</li>
+            <li (click)="navigate('incomes')"><span class="menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Ingresos</li>
+            <li class="active"><span class="menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span> Egresos</li>
+            <li (click)="navigate('deudas')"><span class="menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span> Deudas</li>
+            <li *ngIf="isAdmin" (click)="navigate('usuarios')"><span class="menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 0 0 7.75"/></svg></span> Usuarios</li>
           </ul>
         </nav>
-
         <div class="sidebar-footer">
           <div class="user-info">
             <div class="user-avatar">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <img *ngIf="profilePicture" [src]="profilePicture" [alt]="userName">
+              <span *ngIf="!profilePicture">◯</span>
             </div>
             <div class="user-details">
               <span class="user-name">{{ userName }}</span>
               <span class="user-role">Rol: {{ roleLabel }}</span>
             </div>
           </div>
-          <button class="logout-btn" (click)="logout()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Cerrar sesión
-          </button>
+          <button class="logout-btn" (click)="logout()">Cerrar sesion</button>
         </div>
       </aside>
 
-      <!-- CONTENIDO PRINCIPAL -->
       <main class="main-content">
-
         <p *ngIf="errorMsg" class="error-banner">{{ errorMsg }}</p>
-
-        <!-- HEADER -->
         <header class="topbar">
           <div class="topbar-title">
             <h1>Egresos</h1>
             <p>Bienvenido, {{ userName }}</p>
           </div>
-
           <div class="topbar-actions">
             <div class="search-bar">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" placeholder="Buscar transacción..." [(ngModel)]="searchTerm">
-            </div>
-            <button class="icon-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            </button>
-            <div class="user-profile">
-              <span class="user-badge" [class.admin]="isAdmin">{{ isAdmin ? 'Admin' : 'Usuario' }}</span>
+              <span>⌕</span>
+              <input type="search" name="searchTerm" autocomplete="off" placeholder="Buscar transaccion..." [(ngModel)]="searchTerm" [ngModelOptions]="{standalone: true}">
             </div>
             <button (click)="logout()" class="btn-logout-top">Salir</button>
           </div>
         </header>
 
-        <!-- KPIs DE EGRESOS -->
         <section class="summary-cards">
+          <div class="card stat-card">
+            <div class="card-header">
+              <div class="icon green">$</div>
+              <h3>Total Ingresos</h3>
+            </div>
+            <h2>{{ money(totalIngresos) }}</h2>
+            <p class="trend">Actualizado hoy</p>
+          </div>
+
           <div class="card stat-card">
             <div class="card-header">
               <div class="icon green">
@@ -125,7 +109,7 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
               <label for="descripcion">Descripción</label>
               <input id="descripcion" type="text" name="descripcion" placeholder="Ej: Arriendo mensual" [(ngModel)]="egresoForm.descripcion" required>
 
-              <label for="monto">Monto ($)</label>
+              <label for="monto">Monto (Q)</label>
               <input id="monto" type="number" min="0" step="0.01" name="monto" placeholder="0.00" [(ngModel)]="egresoForm.monto" required>
 
               <label for="tipo">Tipo de Egreso</label>
@@ -149,7 +133,7 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
           <div class="card history-card">
             <div class="panel-header">
               <h3>Historial de Egresos</h3>
-              <span class="count-badge">{{ egresos.length }}</span>
+              <span class="count-badge">{{ egresosFiltrados.length }}</span>
             </div>
 
             <table class="income-table">
@@ -186,120 +170,6 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
               </tbody>
             </table>
           </div>
-
-        </section>
-
-        <!-- SEGUNDA SECCIÓN DE EGRESOS -->
-        <section class="section-ahorros">
-
-          <div class="section-title">
-            <h3>Resumen del Mes</h3>
-          </div>
-
-          <section class="summary-cards">
-            <div class="card stat-card">
-              <div class="card-header">
-                <div class="icon orange">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                </div>
-                <h3>Total Gastos Mes</h3>
-              </div>
-              <h2>{{ money(totalGastosMes) }}</h2>
-              <p class="trend">Actualizado hoy</p>
-            </div>
-
-            <div class="card stat-card">
-              <div class="card-header">
-                <div class="icon blue">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
-                </div>
-                <h3>Presupuesto Mensual</h3>
-              </div>
-              <h2>{{ money(presupuestoMensual) }}</h2>
-              <p class="trend">{{ pctPresupuesto }}% utilizado</p>
-            </div>
-          </section>
-
-          <section class="panels">
-
-            <!-- REGISTRAR GASTO POR CATEGORÍA -->
-            <div class="card form-card">
-              <div class="panel-header">
-                <div class="icon orange">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                </div>
-                <h3>Registrar Gasto por Categoría</h3>
-              </div>
-
-              <form class="gasto-form" (ngSubmit)="addOrUpdateGasto()">
-                <label for="gasto-descripcion">Descripción</label>
-                <input id="gasto-descripcion" type="text" name="gastoDescripcion" placeholder="Ej: Servicio de internet" [(ngModel)]="gastoForm.descripcion" required>
-
-                <label for="gasto-monto">Monto ($)</label>
-                <input id="gasto-monto" type="number" min="0" step="0.01" name="gastoMonto" placeholder="0.00" [(ngModel)]="gastoForm.monto" required>
-
-                <label for="gasto-categoria">Seleccionar categoría</label>
-                <select id="gasto-categoria" name="gastoCategoria" [(ngModel)]="gastoForm.categoria" required>
-                  <option value="">Seleccionar categoría</option>
-                  <option value="Servicios">Servicios</option>
-                  <option value="Transporte">Transporte</option>
-                  <option value="Alimentación">Alimentación</option>
-                </select>
-
-                <label for="gasto-fecha">Fecha</label>
-                <input id="gasto-fecha" type="text" name="gastoFecha" placeholder="DD/MM/AAAA" [(ngModel)]="gastoForm.fecha" required>
-
-                <button type="submit" class="btn-add btn-add-orange">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                  {{ gastoEditingId ? 'Actualizar Gasto' : 'Agregar Gasto' }}
-                </button>
-                <button *ngIf="gastoEditingId" type="button" class="btn-cancel" (click)="cancelEditGasto()">Cancelar edición</button>
-              </form>
-            </div>
-
-            <!-- GASTOS POR CATEGORÍA -->
-            <div class="card history-card">
-              <div class="panel-header">
-                <h3>Gastos por Categoría</h3>
-                <span class="count-badge">{{ categorias.length }}</span>
-              </div>
-
-              <table class="income-table">
-                <thead>
-                  <tr>
-                    <th>Descripción</th>
-                    <th>Monto</th>
-                    <th>Categoría</th>
-                    <th>Fecha</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (categoria of categoriasFiltradas; track categoria.id) {
-                    <tr>
-                      <td>{{ categoria.descripcion }}</td>
-                      <td class="amount">{{ money(categoria.monto) }}</td>
-                      <td><span class="chip" [class.servicios]="categoria.categoria === 'Servicios'" [class.transporte]="categoria.categoria === 'Transporte'" [class.alimentacion]="categoria.categoria === 'Alimentación'">{{ categoria.categoria }}</span></td>
-                      <td>{{ fromBackendDate(categoria.fecha) }}</td>
-                      <td class="actions">
-                        <button class="action-btn edit" title="Editar" (click)="editGasto(categoria)">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                        </button>
-                        <button class="action-btn delete" title="Eliminar" (click)="deleteGasto(categoria.id)">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </button>
-                      </td>
-                    </tr>
-                  } @empty {
-                    <tr>
-                      <td colspan="5" class="empty-cell">{{ loading ? 'Cargando...' : 'Sin gastos por categoría registrados' }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-
-          </section>
 
         </section>
 
@@ -399,6 +269,8 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
       width: 20px;
       height: 20px;
     }
+
+    .menu-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
     .sidebar-menu li:hover {
       color: var(--text-main);
@@ -542,6 +414,8 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
       justify-content: center;
     }
 
+    .user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+
     .user-badge {
       padding: 7px 16px;
       border-radius: 20px;
@@ -574,7 +448,7 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
     /* SUMMARY CARDS */
     .summary-cards {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 1.2rem;
       margin-bottom: 1.5rem;
     }
@@ -634,6 +508,10 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-top: 6px;
+    }
+
+    .negative {
+      color: var(--brand-red);
     }
 
     /* SECTION TITLE */
@@ -754,6 +632,11 @@ import { Egreso, EgresoCategoria } from '../../../core/models/egreso.model';
       font-family: 'Inter', sans-serif;
       cursor: pointer;
       transition: all 0.2s ease;
+    }
+
+    .btn-add:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .btn-add-red {
@@ -907,9 +790,12 @@ export class EgresosComponent implements OnInit {
   authService = inject(AuthService);
   router = inject(Router);
   egresoService = inject(EgresoService);
+  ingresoService = inject(IngresoService);
+  changeDetector = inject(ChangeDetectorRef);
 
   egresos: Egreso[] = [];
-  categorias: EgresoCategoria[] = [];
+  ingresos: Ingreso[] = [];
+  ahorros: Ahorro[] = [];
   loading = true;
   errorMsg = '';
 
@@ -918,14 +804,9 @@ export class EgresosComponent implements OnInit {
   egresoForm = { descripcion: '', monto: null as number | null, tipo: 'Fijo', fecha: '' };
   egresoEditingId: string | null = null;
 
-  gastoForm = { descripcion: '', monto: null as number | null, categoria: '', fecha: '' };
-  gastoEditingId: string | null = null;
-
-  presupuestoMensual = 5000;
-
   ngOnInit(): void {
-    this.egresoForm.fecha = this.getToday();
-    this.gastoForm.fecha = this.getToday();
+    this.resetEgresoForm();
+    this.searchTerm = '';
     this.loadData();
   }
 
@@ -934,13 +815,38 @@ export class EgresosComponent implements OnInit {
     this.errorMsg = '';
     this.egresoService.getData().subscribe({
       next: (res) => {
-        this.egresos = res.data?.egresos ?? [];
-        this.categorias = res.data?.categorias ?? [];
+        this.egresos = (res.data?.egresos ?? []).map((e: Egreso) => ({
+          ...e,
+          id: String(e.id),
+          monto: Number(e.monto),
+          fecha: toIsoDate(e.fecha)
+        }));
         this.loading = false;
+        this.changeDetector.detectChanges();
       },
       error: (err) => {
         this.errorMsg = err.message || 'Error al cargar los datos';
         this.loading = false;
+      }
+    });
+    this.ingresoService.getData().subscribe({
+      next: (res) => {
+        this.ingresos = (res.data?.ingresos ?? []).map((i: Ingreso) => ({
+          ...i,
+          id: String(i.id),
+          monto: Number(i.monto),
+          fecha: toIsoDate(i.fecha)
+        }));
+        this.ahorros = (res.data?.ahorros ?? []).map((a: Ahorro) => ({
+          ...a,
+          id: String(a.id),
+          monto: Number(a.monto),
+          fecha: toIsoDate(a.fecha)
+        }));
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error al cargar ingresos:', err.message);
       }
     });
   }
@@ -953,28 +859,19 @@ export class EgresosComponent implements OnInit {
     return this.egresos.filter(e => e.tipo === 'Variable').reduce((sum, e) => sum + Number(e.monto), 0);
   }
 
-  get totalGastosMes(): number {
-    return this.fijosTotal + this.variablesTotal;
+  get totalIngresos(): number {
+    const ingresos = this.ingresos.reduce((sum, i) => sum + Number(i.monto), 0);
+    const ahorros = this.ahorros.reduce((sum, a) => sum + Number(a.monto), 0);
+    return ingresos - this.totalEgresos - ahorros;
   }
 
-  get pctPresupuesto(): number {
-    if (this.presupuestoMensual <= 0) return 0;
-    return Math.round((this.totalGastosMes / this.presupuestoMensual) * 100);
+  get totalEgresos(): number {
+    return this.egresos.reduce((sum, e) => sum + Number(e.monto), 0);
   }
 
   get egresosFiltrados(): Egreso[] {
-    const term = this.searchTerm.toLowerCase().trim();
-    if (!term) return this.egresos;
     return this.egresos.filter(e =>
-      e.descripcion.toLowerCase().includes(term) || e.tipo.toLowerCase().includes(term)
-    );
-  }
-
-  get categoriasFiltradas(): EgresoCategoria[] {
-    const term = this.searchTerm.toLowerCase().trim();
-    if (!term) return this.categorias;
-    return this.categorias.filter(c =>
-      c.descripcion.toLowerCase().includes(term) || c.categoria.toLowerCase().includes(term)
+      matchesSearch(this.searchTerm, e.descripcion, e.tipo, e.fecha)
     );
   }
 
@@ -983,11 +880,14 @@ export class EgresosComponent implements OnInit {
       descripcion: this.egresoForm.descripcion.trim(),
       monto: Number(this.egresoForm.monto),
       tipo: this.egresoForm.tipo,
-      fecha: this.toBackendDate(this.egresoForm.fecha)
+      fecha: toIsoDate(this.egresoForm.fecha)
     };
     if (!payload.descripcion || !payload.monto || !payload.fecha) {
+      this.errorMsg = 'Descripción, monto y fecha son obligatorios';
       return;
     }
+    this.searchTerm = '';
+
     if (this.egresoEditingId) {
       this.egresoService.updateEgreso(this.egresoEditingId, payload).subscribe({
         next: () => {
@@ -1012,7 +912,7 @@ export class EgresosComponent implements OnInit {
     this.egresoForm.descripcion = egreso.descripcion;
     this.egresoForm.monto = Number(egreso.monto);
     this.egresoForm.tipo = egreso.tipo;
-    this.egresoForm.fecha = this.fromBackendDate(egreso.fecha);
+    this.egresoForm.fecha = toDisplayDate(egreso.fecha);
   }
 
   cancelEditEgreso(): void {
@@ -1021,7 +921,7 @@ export class EgresosComponent implements OnInit {
 
   private resetEgresoForm(): void {
     this.egresoEditingId = null;
-    this.egresoForm = { descripcion: '', monto: null, tipo: 'Fijo', fecha: this.getToday() };
+    this.egresoForm = { descripcion: '', monto: null, tipo: 'Fijo', fecha: todayDisplay() };
   }
 
   deleteEgreso(id: string): void {
@@ -1034,84 +934,21 @@ export class EgresosComponent implements OnInit {
     });
   }
 
-  addOrUpdateGasto(): void {
-    const payload = {
-      descripcion: this.gastoForm.descripcion.trim(),
-      monto: Number(this.gastoForm.monto),
-      categoria: this.gastoForm.categoria,
-      fecha: this.toBackendDate(this.gastoForm.fecha)
-    };
-    if (!payload.descripcion || !payload.monto || !payload.categoria || !payload.fecha) {
-      return;
-    }
-    if (this.gastoEditingId) {
-      this.egresoService.updateCategoria(this.gastoEditingId, payload).subscribe({
-        next: () => {
-          this.resetGastoForm();
-          this.loadData();
-        },
-        error: (err) => this.errorMsg = err.message || 'Error al actualizar'
-      });
-    } else {
-      this.egresoService.createCategoria(payload).subscribe({
-        next: () => {
-          this.resetGastoForm();
-          this.loadData();
-        },
-        error: (err) => this.errorMsg = err.message || 'Error al registrar'
-      });
-    }
-  }
-
-  editGasto(categoria: EgresoCategoria): void {
-    this.gastoEditingId = categoria.id;
-    this.gastoForm.descripcion = categoria.descripcion;
-    this.gastoForm.monto = Number(categoria.monto);
-    this.gastoForm.categoria = categoria.categoria;
-    this.gastoForm.fecha = this.fromBackendDate(categoria.fecha);
-  }
-
-  cancelEditGasto(): void {
-    this.resetGastoForm();
-  }
-
-  private resetGastoForm(): void {
-    this.gastoEditingId = null;
-    this.gastoForm = { descripcion: '', monto: null, categoria: '', fecha: this.getToday() };
-  }
-
-  deleteGasto(id: string): void {
-    if (!confirm('¿Eliminar este gasto por categoría?')) {
-      return;
-    }
-    this.egresoService.deleteCategoria(id).subscribe({
-      next: () => this.loadData(),
-      error: (err) => this.errorMsg = err.message || 'Error al eliminar'
-    });
-  }
-
-  money(value: number): string {
+money(value: number): string {
     const n = Number(value) || 0;
-    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'Q' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   toBackendDate(fecha: string): string {
-    const m = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (!m) return fecha;
-    return `${m[3]}-${m[2]}-${m[1]}`;
+    return toIsoDate(fecha);
   }
 
   fromBackendDate(fecha: string): string {
-    if (!fecha) return '';
-    const m = fecha.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return fecha;
-    return `${m[3]}/${m[2]}/${m[1]}`;
+    return toDisplayDate(fecha);
   }
 
   private getToday(): string {
-    const d = new Date();
-    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    return todayDisplay();
   }
 
   get isAdmin(): boolean {
@@ -1120,6 +957,10 @@ export class EgresosComponent implements OnInit {
 
   get userName(): string {
     return this.authService.currentUserSubject.value?.name || 'Usuario';
+  }
+
+  get profilePicture(): string | null {
+    return this.authService.currentUserSubject.value?.picture || null;
   }
 
   get roleLabel(): string {
