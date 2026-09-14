@@ -4,9 +4,8 @@ import { pool } from './config/database';
 
 const startServer = async () => {
   try {
-    // Verificar conexión a DB
     await pool.query('SELECT 1');
-    console.log('✅ Conexión a PostgreSQL 18 establecida.');
+    console.log('✅ Conexión a PostgreSQL establecida.');
 
     app.listen(config.port, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${config.port}`);

@@ -1,4 +1,5 @@
 import { DeudaRepository } from '../repositories/deuda.repository';
+import { toIsoDate } from '../utils/date.util';
 
 export class DeudaService {
   private repository = new DeudaRepository();
@@ -22,8 +23,8 @@ export class DeudaService {
       cuota_mensual,
       tasa_interes: tasa_interes ?? 0,
       estado: estado || 'Activa',
-      fecha_inicio,
-      vencimiento
+      fecha_inicio: toIsoDate(fecha_inicio),
+      vencimiento: toIsoDate(vencimiento)
     });
   }
 
@@ -38,8 +39,8 @@ export class DeudaService {
       cuota_mensual,
       tasa_interes: tasa_interes ?? 0,
       estado: estado || 'Activa',
-      fecha_inicio,
-      vencimiento
+      fecha_inicio: toIsoDate(fecha_inicio),
+      vencimiento: toIsoDate(vencimiento)
     });
     if (!updated) {
       throw new Error('Deuda no encontrada');
@@ -59,7 +60,7 @@ export class DeudaService {
     if (!deuda_id || monto === undefined || !fecha) {
       throw new Error('Deuda, monto y fecha son obligatorios');
     }
-    return this.repository.createPago(userId, { deuda_id, monto, fecha, nota: nota || null });
+    return this.repository.createPago(userId, { deuda_id, monto, fecha: toIsoDate(fecha), nota: nota || null });
   }
 
   async updatePago(userId: string, id: string, body: any) {
@@ -67,7 +68,7 @@ export class DeudaService {
     if (!deuda_id || monto === undefined || !fecha) {
       throw new Error('Deuda, monto y fecha son obligatorios');
     }
-    const updated = await this.repository.updatePagoById(id, userId, { deuda_id, monto, fecha, nota: nota || null });
+    const updated = await this.repository.updatePagoById(id, userId, { deuda_id, monto, fecha: toIsoDate(fecha), nota: nota || null });
     if (!updated) {
       throw new Error('Pago no encontrado');
     }
